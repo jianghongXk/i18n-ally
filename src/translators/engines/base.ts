@@ -9,6 +9,12 @@ export interface TranslateOptions {
   to?: string
 }
 
+export interface BatchTranslateOptions {
+  texts: string[]
+  from?: string
+  to?: string
+}
+
 export interface TranslateResult {
   text: string
   from: string
@@ -20,6 +26,10 @@ export interface TranslateResult {
   detailed?: string[]
 }
 
+export interface BatchTranslateResult {
+  results: TranslateResult[]
+}
+
 export default abstract class TranslateEngine {
   constructor(public config: TranslateEngineConfig = {}) {}
 
@@ -28,4 +38,13 @@ export default abstract class TranslateEngine {
   }
 
   abstract translate(options: TranslateOptions): Promise<TranslateResult>
+
+  async translateBatch(options: BatchTranslateOptions): Promise<BatchTranslateResult> {
+    const results: TranslateResult[] = []
+    for (const text of options.texts) {
+      const result = await this.translate({ text, from: options.from, to: options.to })
+      results.push(result)
+    }
+    return { results }
+  }
 }

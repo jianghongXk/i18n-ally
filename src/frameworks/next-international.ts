@@ -1,7 +1,7 @@
 import { TextDocument } from 'vscode'
 import { Framework, ScopeRange } from './base'
 import { LanguageId } from '~/utils'
-import { RewriteKeySource, RewriteKeyContext, KeyStyle, Config } from '~/core'
+import { RewriteKeySource, RewriteKeyContext, KeyStyle, Config, DetectionResult } from '~/core'
 import { extractionsParsers, DefaultExtractionRules, DefaultDynamicExtractionsRules } from '~/extraction'
 
 class NextInternationalFramework extends Framework {
@@ -75,10 +75,13 @@ class NextInternationalFramework extends Framework {
     }
   }
 
-  refactorTemplates(keypath: string) {
+  refactorTemplates(keypath: string, args?: string[], document?: TextDocument, detection?: DetectionResult) {
     const keypaths = keypath.split('.').map((_, index, parts) => {
       return parts.slice(parts.length - index - 1).join('.')
     })
+    if (detection?.source === 'html-interpolation') {
+      return keypaths.map(cur => `t('${cur}')`)
+    }
     return [
       ...keypaths.map(cur =>
         `{t('${cur}')}`,

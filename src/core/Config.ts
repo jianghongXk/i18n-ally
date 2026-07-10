@@ -484,6 +484,14 @@ export class Config {
     this.setConfig('extract.ignored', v)
   }
 
+  static get extractIgnoredRegex() {
+    return this.getConfig<string[]>('extract.ignoredRegex') ?? []
+  }
+
+  static set extractIgnoredRegex(v) {
+    this.setConfig('extract.ignoredRegex', v)
+  }
+
   static get extractIgnoredByFiles() {
     return this.getConfig<Record<string, string[]>>('extract.ignoredByFiles') ?? {}
   }

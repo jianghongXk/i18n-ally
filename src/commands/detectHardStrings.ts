@@ -37,7 +37,9 @@ export async function DetectHardStrings(document = window.activeTextEditor?.docu
   // filter out ignored results
   const ignored = Config.extractIgnored
   const ignoredByFiles = Config.extractIgnoredByFiles[relative(Config.root, document.uri.fsPath)] || []
-  result = result.filter(r => !ignored.includes(r.text) && !ignoredByFiles.includes(r.text))
+  const ignoredRegex = Config.extractIgnoredRegex.map(r => new RegExp(r))
+  
+  result = result.filter(r => !ignored.includes(r.text) && !ignoredByFiles.some(i => i === r.text) && !ignoredRegex.some(re => re.test(r.text)))
 
   return result
 }

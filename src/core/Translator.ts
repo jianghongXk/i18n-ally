@@ -122,37 +122,81 @@ export class Translator {
 
       const increment = 1 / total * 100
 
-      const doJob = async(job: TranslateJob) => {
-        let result: PendingWrite | undefined
-        const message = `"${job.keypath}" (${job.source}->${job.locale}) ${finished + 1}/${total}`
-        progress.report({ increment: 0, message })
-        try {
-          result = await this.translateJob(job)
-          if (result)
-            successJobs.push(job)
-          else
-            cancelledJobs.push(job)
+      const allResults: ({result: PendingWrite | undefined; job: TranslateJob})[] = []
+
+      const batchSize = 40
+      const totalBatches = Math.ceil(jobs.length / batchSize)
+
+      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+        if (token?.isCancellationRequested)
+          break
+
+        const batchJobs = jobs.slice(batchIdx * batchSize, (batchIdx + 1) * batchSize)
+
+        const jobsByLocale: Record<string, TranslateJob[]> = {}
+        for (const job of batchJobs) {
+          if (!jobsByLocale[job.locale])
+            jobsByLocale[job.locale] = []
+          jobsByLocale[job.locale].push(job)
         }
-        catch (err) {
-          // eslint-disable-next-line no-console
-          console.error(err)
-          failedJobs.push([job, err])
+
+        for (const [locale, localeJobs] of Object.entries(jobsByLocale)) {
+          const texts = localeJobs.map(job => this.getValueOfKey(job.loader, job.keypath, job.source))
+          const source = localeJobs[0].source
+
+          const message = `Batch ${batchIdx + 1}/${totalBatches} (${locale}) ${finished + 1}/${total}`
+          progress.report({ increment: 0, message })
+
+          const results = await this.translateTexts(texts, source, locale)
+
+          for (let i = 0; i < localeJobs.length; i++) {
+            if (token?.isCancellationRequested)
+              break
+
+            const job = localeJobs[i]
+            const result = results[i]
+
+            const jobMessage = `"${job.keypath}" (${job.source}->${job.locale}) ${finished + 1}/${total}`
+            progress.report({ increment: 0, message: jobMessage })
+
+            try {
+              if (result instanceof Error) {
+                throw result
+              }
+
+              if (!result) {
+                cancelledJobs.push(job)
+              }
+              else {
+                const pending: PendingWrite = {
+                  locale: job.locale,
+                  value: result,
+                  filepath: job.filepath,
+                  keypath: job.keypath,
+                }
+                allResults.push({ result: pending, job })
+                successJobs.push(job)
+              }
+            }
+            catch (err) {
+              console.error(err)
+              failedJobs.push([job, err])
+            }
+            finished += 1
+            progress.report({ increment, message: jobMessage })
+          }
         }
-        finished += 1
-        progress.report({ increment, message })
-        return { result, job }
       }
 
-      // do translating in batch
-      const parallels = Config.translateParallels
-      const slices = Math.ceil(jobs.length / parallels)
-      for (let i = 0; i < slices; i++) {
-        const results = await Promise.all(
-          jobs
-            .slice(i * parallels, (i + 1) * parallels)
-            .map(job => doJob(job)),
-        )
-        this.saveTranslations(loader, results)
+      const successfulResults = allResults.filter(i => i.result)
+      if (successfulResults.length > 0) {
+        try {
+          await this.saveTranslations(loader, successfulResults)
+        }
+        catch (err) {
+          console.error('Failed to save translations', err)
+          window.showErrorMessage(i18n.t('prompt.translate_save_failed'))
+        }
       }
 
       // translating done
@@ -300,7 +344,51 @@ export class Translator {
     }
   }
 
-  private static async translateText(text: string, from: string, to: string) {
+  private static async translateTexts(texts: string[], from: string, to: string): Promise<(string | Error)[]> {
+    const engines = Config.translateEngines
+
+    for (const engine of engines) {
+      try {
+        const engineInstance = this._translator.engines[engine]
+        if (engineInstance && typeof engineInstance.translateBatch === 'function') {
+          try {
+            const batchResult = await engineInstance.translateBatch({ texts, from, to })
+            const batchResults = batchResult.results.map(r => {
+              if (r.error)
+                return r.error
+              return (r.result || []).join('\n') || r.error || new Error('No result')
+            })
+
+            const hasErrors = batchResults.some(r => r instanceof Error)
+            if (!hasErrors)
+              return batchResults
+          }
+          catch (batchErr) {
+            console.error('Batch translation failed, falling back to single translation', batchErr)
+          }
+        }
+
+        const results: (string | Error)[] = []
+        for (const text of texts) {
+          try {
+            const result = await this.translateText(text, from, to)
+            results.push(result)
+          }
+          catch (e) {
+            results.push(e as Error)
+          }
+        }
+        return results
+      }
+      catch (e) {
+        console.error(`Translation engine ${engine} failed`, e)
+      }
+    }
+
+    return texts.map(() => new Error('All translation engines failed'))
+  }
+
+  private static async translateText(text: string, from: string, to: string): Promise<string> {
     const engines = Config.translateEngines
     let trans_result: TranslateResult | undefined
 

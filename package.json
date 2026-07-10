@@ -1,9 +1,9 @@
 {
   "publisher": "lokalise",
   "name": "i18n-ally",
-  "version": "2.13.1",
-  "displayName": "i18n Ally",
-  "description": "🌍 All in one i18n extension for VS Code",
+  "version": "2.15.12",
+  "displayName": "i18n Ally Support Regex",
+  "description": "🌍 All in one i18n extension for VS Code with regex support",
   "keywords": [
     "vue",
     "vue-i18n",
@@ -992,6 +992,7 @@
                 "enum": [
                   "html-attribute",
                   "html-inline",
+                  "html-interpolation",
                   "js-string",
                   "js-template",
                   "jsx-text"
@@ -1260,6 +1261,13 @@
             "type": "string"
           },
           "description": "Strings to be ignored on hard-coded strings detection"
+        },
+        "i18n-ally.extract.ignoredRegex": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Regular expressions to be ignored on hard-coded strings detection"
         },
         "i18n-ally.extract.ignoredByFiles": {
           "type": "object",

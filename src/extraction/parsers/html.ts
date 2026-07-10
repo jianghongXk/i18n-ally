@@ -1,4 +1,7 @@
 import { Parser } from 'htmlparser2'
+import { parse } from '@babel/parser'
+// @ts-ignore
+import traverse from '@babel/traverse'
 import { DefaultDynamicExtractionsRules, DefaultExtractionRules, ExtractionRule } from '../rules'
 import { shouldExtract } from '../shouldExtract'
 import { ExtractionHTMLOptions } from './options'
@@ -10,6 +13,112 @@ const defaultOptions: Required<ExtractionHTMLOptions> = {
   ignoredTags: ['script', 'style'],
   vBind: true,
   inlineText: true,
+}
+
+function extractStringsFromExpression(
+  expression: string,
+  baseOffset: number,
+  rules: ExtractionRule[],
+  dynamicRules: ExtractionRule[],
+): DetectionResult[] {
+  const results: DetectionResult[] = []
+  const ignores: [number, number][] = []
+
+  function recordIgnore(path: any) {
+    const fullStart = path?.node?.start ?? path?.start
+    const fullEnd = path?.node?.end ?? path?.end
+    if (!fullStart || !fullEnd)
+      return
+    ignores.push([fullStart, fullEnd])
+  }
+
+  function isIgnored(start: number, end: number) {
+    return ignores.some(([s, e]) => (s <= start && start <= e) || (s <= end && end <= e))
+  }
+
+  function isTranslationFunction(callee: any) {
+    if (callee.isIdentifier()) {
+      const name = callee.node.name
+      return ['t', 'tc', 'te', 'i18n'].includes(name)
+    }
+    if (callee.isMemberExpression()) {
+      const property = callee.get('property')
+      if (property.isIdentifier()) {
+        const name = property.node.name
+        return ['t', 'tc', 'te'].includes(name)
+      }
+    }
+    return false
+  }
+
+  try {
+    const ast = parse(expression, {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript'],
+    })
+
+    traverse(ast, {
+      CallExpression(path: any) {
+        const callee = path.get('callee')
+        if (isTranslationFunction(callee)) {
+          path.get('arguments').forEach(recordIgnore)
+        }
+      },
+      StringLiteral(path: any) {
+        const fullStart = path.node.start
+        const fullEnd = path.node.end
+        if (!fullStart || !fullEnd)
+          return
+
+        if (isIgnored(fullStart, fullEnd))
+          return
+
+        const fullText = expression.slice(fullStart, fullEnd)
+        const text = fullText.slice(1, -1)
+
+        if (shouldExtract(text, rules)) {
+          results.push({
+            fullEnd: baseOffset + fullEnd,
+            fullStart: baseOffset + fullStart,
+            fullText,
+            start: baseOffset + fullStart,
+            end: baseOffset + fullEnd,
+            text,
+            source: 'html-interpolation',
+          })
+        }
+      },
+      TemplateLiteral(path: any) {
+        const fullStart = path.node.start
+        const fullEnd = path.node.end
+        if (!fullStart || !fullEnd)
+          return
+
+        if (isIgnored(fullStart, fullEnd))
+          return
+
+        const fullText = expression.slice(fullStart, fullEnd)
+        const text = fullText.slice(1, -1)
+
+        if (shouldExtract(text, dynamicRules)) {
+          results.push({
+            fullEnd: baseOffset + fullEnd,
+            fullStart: baseOffset + fullStart,
+            fullText,
+            start: baseOffset + fullStart,
+            end: baseOffset + fullEnd,
+            text,
+            source: 'html-interpolation',
+          })
+        }
+      },
+    })
+  }
+  catch (e) {
+    // ignore parsing errors
+  }
+
+  return results
 }
 
 export function detect(
@@ -63,29 +172,69 @@ export function detect(
       const code = input.slice(tagStart, tagEnd)
 
       for (const [name, isDynamic] of attrNames) {
-        const match = code.match(
-          new RegExp(`\\s${name}=(["'])([^\\1]*?)\\1`, 'm'),
-        )
-        if (!match)
+        const attrValue = attrs[name]
+        if (attrValue == null)
           continue
 
-        const fullStart = tagStart + match.index! + 1
-        const fullEnd = fullStart + match[0].length - 1
+        const attrPattern = new RegExp('\\s' + name + '=(["\'])', 'g')
+        let attrMatch
+        let lastMatchIndex = -1
+        while ((attrMatch = attrPattern.exec(code)) !== null) {
+          lastMatchIndex = attrMatch.index
+        }
+
+        if (lastMatchIndex === -1)
+          continue
+
+        const fullStart = tagStart + lastMatchIndex + 1
+        const attrText = name + '="' + attrValue + '"'
+        const fullEnd = fullStart + attrText.length
         const fullText = input.slice(fullStart, fullEnd)
         const start = fullStart + name.length + 2 // ="
         const end = fullEnd - 1 // "
         const text = input.slice(start, end)
 
-        detections.push({
-          text,
-          start,
-          end,
-          isDynamic,
-          fullStart,
-          fullEnd,
-          fullText,
-          source: 'html-attribute',
-        })
+        if (isDynamic) {
+          const strings = extractStringsFromExpression(text, start, rules, dynamicRules)
+          if (strings.length > 0) {
+            for (const str of strings) {
+              detections.push({
+                ...str,
+                source: 'html-attribute-string' as const,
+                attributeName: name,
+                fullStart,
+                fullEnd,
+                fullText,
+              })
+            }
+          }
+          else {
+            detections.push({
+              text,
+              start,
+              end,
+              isDynamic,
+              fullStart,
+              fullEnd,
+              fullText,
+              source: 'html-attribute',
+              attributeName: name,
+            })
+          }
+        }
+        else {
+          detections.push({
+            text,
+            start,
+            end,
+            isDynamic,
+            fullStart,
+            fullEnd,
+            fullText,
+            source: 'html-attribute',
+            attributeName: name,
+          })
+        }
       }
     },
     onclosetag(name) {
@@ -107,6 +256,17 @@ export function detect(
       const end = parser.endIndex! + 1
 
       const text = fullText.split(/\n/g).map(i => i.trim()).filter(Boolean).join(' ')
+
+      const interpolationRegex = /\{\{([\s\S]*?)\}\}/g
+      let match
+
+      while ((match = interpolationRegex.exec(fullText)) !== null) {
+        const exprStart = start + match.index + 2
+        const exprText = match[1]
+
+        const strings = extractStringsFromExpression(exprText, exprStart, rules, dynamicRules)
+        detections.push(...strings)
+      }
 
       if (!shouldExtract(text, rules))
         return

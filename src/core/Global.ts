@@ -131,7 +131,9 @@ export class Global {
       })
     const argsString = args?.length ? `,${args?.join(',')}` : ''
 
-    const customReplacers = customTemplates
+    const isHtmlAttribute = detection?.source === 'html-attribute'
+
+    const customTemplatesProcessed = customTemplates
       .flatMap(i => i.templates)
       .map(i => i
         .replace(/{key}/, keypath)
@@ -141,8 +143,26 @@ export class Global {
     const frameworkReplacers = this.enabledFrameworks
       .flatMap(f => f.refactorTemplates(keypath, args, document, detection))
 
+    if (isHtmlAttribute && customTemplatesProcessed.length > 0) {
+      const result: string[] = []
+      for (const frameworkTemplate of frameworkReplacers) {
+        const match = frameworkTemplate.match(/:\w+="([^"]+)"/)
+        if (match) {
+          const originalValue = match[1]
+          for (const customTemplate of customTemplatesProcessed) {
+            const newValue = frameworkTemplate.replace(originalValue, customTemplate)
+            result.push(newValue)
+          }
+        }
+        else {
+          result.push(frameworkTemplate)
+        }
+      }
+      return uniq(result)
+    }
+
     return uniq([
-      ...customReplacers,
+      ...customTemplatesProcessed,
       ...frameworkReplacers,
     ])
   }

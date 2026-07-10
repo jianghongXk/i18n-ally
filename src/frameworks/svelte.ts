@@ -1,7 +1,7 @@
 import { TextDocument } from 'vscode'
 import { Framework } from './base'
 import { LanguageId } from '~/utils'
-import { Config } from '~/core'
+import { Config, DetectionResult } from '~/core'
 import { extractionsParsers, DefaultExtractionRules, DefaultDynamicExtractionsRules } from '~/extraction'
 
 class SvelteFramework extends Framework {
@@ -26,7 +26,13 @@ class SvelteFramework extends Framework {
     '(?:\\$(?:_|t|format)|(?:get)\\(\\s*(?:_|t|format)\\s*\\))\\(\\s*[\'"`]({key})[\'"`]',
   ]
 
-  refactorTemplates(keypath: string) {
+  refactorTemplates(keypath: string, args?: string[], document?: TextDocument, detection?: DetectionResult) {
+    if (detection?.source === 'html-interpolation') {
+      return [
+        `$_('${keypath}')`,
+        `$t('${keypath}')`,
+      ]
+    }
     return [
       `$_('${keypath}')`,
       `$t('${keypath}')`,

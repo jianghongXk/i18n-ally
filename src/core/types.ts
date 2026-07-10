@@ -157,7 +157,7 @@ export enum TargetPickingStrategy {
   MostSimilarByKey = 'most-similar-by-key',
 }
 
-export type DetectionSource = 'html-attribute' | 'html-inline' | 'js-string' | 'js-template' | 'jsx-text'
+export type DetectionSource = 'html-attribute' | 'html-attribute-string' | 'html-inline' | 'html-interpolation' | 'js-string' | 'js-template' | 'jsx-text'
 
 export interface DetectionResult {
   text: string
@@ -169,6 +169,7 @@ export interface DetectionResult {
   fullStart?: number
   fullEnd?: number
   source: DetectionSource
+  attributeName?: string
 }
 
 export interface ExtractInfo {

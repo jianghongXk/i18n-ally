@@ -9,6 +9,14 @@ import { ExtractTextOptions } from '~/commands/extractString'
 import { DetectionResult } from '~/core/types'
 
 export function DetectionResultToExtraction(detection: DetectionResult, document: TextDocument): ExtractTextOptions {
+  let rangeStart = detection.start
+  let rangeEnd = detection.end
+
+  if (detection.source === 'html-attribute' && detection.fullStart != null && detection.fullEnd != null) {
+    rangeStart = detection.fullStart
+    rangeEnd = detection.fullEnd
+  }
+
   return {
     isDynamic: detection.isDynamic,
     document,
@@ -16,8 +24,8 @@ export function DetectionResultToExtraction(detection: DetectionResult, document
     rawText: detection.text.trim(),
     isInsert: false,
     range: new Range(
-      document.positionAt(detection.start),
-      document.positionAt(detection.end),
+      document.positionAt(rangeStart),
+      document.positionAt(rangeEnd),
     ),
   }
 }

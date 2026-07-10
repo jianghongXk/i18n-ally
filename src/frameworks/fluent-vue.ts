@@ -44,8 +44,11 @@ class FluentVueFramework extends Framework {
     switch (detection?.source) {
       case 'html-inline':
         return [`{{ $t(${params}) }}`]
-      case 'html-attribute':
+      case 'html-interpolation':
         return [`$t(${params})`]
+      case 'html-attribute':
+        const attrName = detection?.attributeName?.replace(/^:/, '').replace(/^v-bind:/, '') || ''
+        return [`:${attrName}="$t(${params})"`]
       case 'js-string':
         return [`$t(${params})`, `this.$t(${params})`]
     }

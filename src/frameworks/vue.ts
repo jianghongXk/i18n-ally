@@ -42,7 +42,12 @@ class VueFramework extends Framework {
     switch (detection?.source) {
       case 'html-inline':
         return [`{{ $t(${params}) }}`]
+      case 'html-interpolation':
+        return [`$t(${params})`]
       case 'html-attribute':
+        const attrName = detection?.attributeName?.replace(/^:/, '').replace(/^v-bind:/, '') || ''
+        return [`:${attrName}="$t(${params})"`]
+      case 'html-attribute-string':
         return [`$t(${params})`]
       case 'js-string':
         return [`this.$t(${params})`, `i18n.t(${params})`, `t(${params})`]

@@ -64,8 +64,15 @@ export function setNested(obj: any, keys: string[], value: any) {
   const key = keys[0]
   if (keys.length === 1)
     set(obj, key, value)
-  else
-    setNested(set(obj, key, {}, false), keys.slice(1), value)
+  else {
+    const existing = obj[key]
+    if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+      setNested(existing, keys.slice(1), value)
+    }
+    else {
+      setNested(set(obj, key, {}, false), keys.slice(1), value)
+    }
+  }
 }
 
 export function applyPendingToObject(obj: any, keypath: string, value: any, keyStyle?: KeyStyle) {

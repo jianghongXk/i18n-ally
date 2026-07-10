@@ -2,7 +2,7 @@ import { TextDocument } from 'vscode'
 import { Framework } from './base'
 import { LanguageId } from '~/utils'
 import { extractionsParsers, DefaultExtractionRules, DefaultDynamicExtractionsRules } from '~/extraction'
-import { Config } from '~/core'
+import { Config, DetectionResult } from '~/core'
 
 class GeneralFramework extends Framework {
   id = 'general'
@@ -20,7 +20,7 @@ class GeneralFramework extends Framework {
     'html',
   ]
 
-  refactorTemplates(keypath: string, args: string[] = []) {
+  refactorTemplates(keypath: string, args: string[] = [], document?: TextDocument, detection?: DetectionResult) {
     let params = `'${keypath}'`
     if (args.length)
       params += `, [${args.join(', ')}]`

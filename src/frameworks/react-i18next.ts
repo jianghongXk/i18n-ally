@@ -2,7 +2,7 @@ import { TextDocument } from 'vscode'
 import { Framework, ScopeRange } from './base'
 import { LanguageId } from '~/utils'
 import { extractionsParsers, DefaultExtractionRules, DefaultDynamicExtractionsRules } from '~/extraction'
-import { Config, RewriteKeySource, RewriteKeyContext } from '~/core'
+import { Config, RewriteKeySource, RewriteKeyContext, DetectionResult } from '~/core'
 
 class ReactI18nextFramework extends Framework {
   id = 'react-i18next'
@@ -91,7 +91,12 @@ class ReactI18nextFramework extends Framework {
     }
   }
 
-  refactorTemplates(keypath: string) {
+  refactorTemplates(keypath: string, args?: string[], document?: TextDocument, detection?: DetectionResult) {
+    if (detection?.source === 'html-interpolation') {
+      return [
+        `t('${keypath}')`,
+      ]
+    }
     return [
       `{t('${keypath}')}`,
       `t('${keypath}')`,
