@@ -32,6 +32,8 @@
   "command.show_docs": "Show documentation",
   "command.translate_key": "Translate",
   "command.translate_key_from": "Translate from \"{0}\"",
+  "command.translate_all_missing": "Translate All Missing & Empty",
+  "command.delete_all_missing": "Delete All Missing Paths",
   "config.annotation_delimiter": "The delimiter for annotations",
   "config.annotation_in_place": "Show annotation in place instead of appending to the tail",
   "config.annotation_max_length": "Max number of characters shown in the inline annotations. Excess characters will display as an ellipses (...)",

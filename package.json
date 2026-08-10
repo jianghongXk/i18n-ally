@@ -1,7 +1,7 @@
 {
   "publisher": "lokalise",
   "name": "i18n-ally",
-  "version": "2.15.12",
+  "version": "2.16.0",
   "displayName": "i18n Ally Support Regex",
   "description": "🌍 All in one i18n extension for VS Code with regex support",
   "keywords": [
@@ -213,6 +213,18 @@
         "category": "%extname%",
         "title": "%command.translate_key%",
         "icon": "$(globe)"
+      },
+      {
+        "command": "i18n-ally.translate-all-missing",
+        "category": "%extname%",
+        "title": "%command.translate_all_missing%",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "i18n-ally.delete-all-missing",
+        "category": "%extname%",
+        "title": "%command.delete_all_missing%",
+        "icon": "$(trash)"
       },
       {
         "command": "i18n-ally.edit-key",
@@ -577,6 +589,11 @@
           "group": "i18nally@1"
         },
         {
+          "command": "i18n-ally.delete-all-missing",
+          "when": "view =~ /i18n-ally-locales-progress/ && viewItem =~ /progress-submenu-missing/",
+          "group": "inline@1"
+        },
+        {
           "command": "i18n-ally.mark-key-as-in-use",
           "when": "view =~ /i18n-ally-locales/ && viewItem =~ /key_idle/",
           "group": "i18nally@1"
@@ -617,6 +634,11 @@
           "command": "i18n-ally.new-key",
           "group": "navigation",
           "when": "view =~ /i18n-ally-locales-tree/"
+        },
+        {
+          "command": "i18n-ally.translate-all-missing",
+          "group": "navigation",
+          "when": "view =~ /i18n-ally-locales-progress/"
         }
       ],
       "explorer/context": [

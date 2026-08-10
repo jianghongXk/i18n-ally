@@ -18,6 +18,8 @@ export const enum Commands {
   replace_with = 'i18n-ally.replace-with',
   copy_key = 'i18n-ally.copy-key',
   translate_key = 'i18n-ally.translate-key',
+  translate_all_missing = 'i18n-ally.translate-all-missing',
+  delete_all_missing = 'i18n-ally.delete-all-missing',
   edit_key = 'i18n-ally.edit-key',
   open_key = 'i18n-ally.open-key',
   delete_key = 'i18n-ally.delete-key',
