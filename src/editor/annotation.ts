@@ -109,6 +109,15 @@ const annotation: ExtensionModule = (ctx) => {
         document.positionAt(key.start),
         document.positionAt(key.end),
       )
+
+      // 偏移若与当前文本对不上（例如来自过期缓存的旧位置），
+      // 直接跳过这一条，避免把注解画到无关代码上
+      if (usageType !== 'locale') {
+        const bareKey = keypath.split('.').pop()?.split('/').pop()?.split(':').pop() ?? ''
+        if (bareKey && !document.getText(range).includes(bareKey))
+          continue
+      }
+
       const rangeWithQuotes = key.quoted
         ? new Range(
           range.start.with(undefined, range.start.character - 1),

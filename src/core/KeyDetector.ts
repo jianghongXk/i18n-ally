@@ -84,12 +84,25 @@ export class KeyDetector {
 
   static init(ctx: ExtensionContext) {
     workspace.onDidChangeTextDocument(
-      (e) => {
-        delete this._get_keys_cache[e.document.uri.fsPath]
-      },
+      (e) => KeyDetector._purgeCache(e.document.uri.fsPath),
       null,
       ctx.subscriptions,
     )
+    // 文件关闭期间可能被外部改写（格式化、切分支、脚本写入），
+    // 此时不会触发 onDidChangeTextDocument，重开文档必须清一次缓存
+    workspace.onDidOpenTextDocument(
+      (e) => KeyDetector._purgeCache(e.uri.fsPath),
+      null,
+      ctx.subscriptions,
+    )
+  }
+
+  /** 清掉某个文件的所有版本缓存 */
+  private static _purgeCache(filepath: string) {
+    for (const key of Object.keys(this._get_keys_cache)) {
+      if (key === filepath || key.startsWith(`${filepath}@`))
+        delete this._get_keys_cache[key]
+    }
   }
 
   private static _get_keys_cache: Record<string, KeyInDocument[]> = {}
@@ -98,10 +111,13 @@ export class KeyDetector {
     let text = ''
     let rewriteContext: RewriteKeyContext| undefined
     let filepath = ''
+    let cacheKey = ''
     if (typeof document !== 'string') {
       filepath = document.uri.fsPath
-      if (this._get_keys_cache[filepath])
-        return this._get_keys_cache[filepath]
+      // 缓存键带上文档版本：旧版本算出的偏移不能复用到新文本上
+      cacheKey = `${filepath}@${document.version}`
+      if (this._get_keys_cache[cacheKey])
+        return this._get_keys_cache[cacheKey]
 
       regs = regs ?? Global.getUsageMatchRegex(document.languageId, filepath)
       text = document.getText()
@@ -116,8 +132,8 @@ export class KeyDetector {
     }
 
     const keys = regexFindKeys(text, regs, dotEnding, rewriteContext, scopes)
-    if (filepath)
-      this._get_keys_cache[filepath] = keys
+    if (cacheKey)
+      this._get_keys_cache[cacheKey] = keys
     return keys
   }
 
