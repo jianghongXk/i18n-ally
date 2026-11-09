@@ -49,8 +49,6 @@ const RECOMMENDED: Record<string, any> = {
     '^[a-zA-Z]+$',
     '^[\\d.]+$',
     'rgba\\(.*?\\)',
-    '^\\(.+\\)$',
-    '^（.+）$',
     '}\\s*[A-Za-z]{1,3}$',
     '.*?\\.svg',
   ],
