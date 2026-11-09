@@ -5,6 +5,7 @@ import { DefaultDynamicExtractionsRules, DefaultExtractionRules, ExtractionRule 
 import { shouldExtract } from '../shouldExtract'
 import { ExtractionBabelOptions } from './options'
 import { DetectionResult } from '~/core/types'
+import { CJK_CHAR_REGEX } from '../utils'
 
 const defaultOptions: Required<ExtractionBabelOptions> = {
   ignoredJSXAttributes: ['class', 'className', 'key', 'style', 'ref', 'onClick'],
@@ -86,6 +87,49 @@ export function detect(
       handlePath(path, 'js-string')
     },
     TemplateLiteral(path: any) {
+      // Template literal with interpolations, e.g. `设备资源 - ${row.name}` /
+      // `${year}年`: extract every static chunk around the interpolations, so
+      // the replacement becomes `${$t('key')} - ${row.name}` /
+      // `${year}${$t('key')}` and the bindings stay untouched.
+      const expressions: any[] = path?.node?.expressions || []
+      if (expressions.length) {
+        const bodyStart = path.node.start + 1
+        const bodyEnd = path.node.end - 1
+
+        for (let i = 0; i <= expressions.length; i++) {
+          const s = i === 0 ? bodyStart : expressions[i - 1].end + 1
+          const e = i < expressions.length ? expressions[i].start - 2 : bodyEnd
+          if (e <= s)
+            continue
+
+          const raw = input.slice(s, e)
+          // keep only the CJK core of the chunk, so surrounding punctuation and
+          // spaces (e.g. the ` - ` in `设备资源 - ${row.name}`) stay literal
+          const firstCjk = raw.search(CJK_CHAR_REGEX)
+          if (firstCjk < 0)
+            continue
+          let lastCjk = raw.length - 1
+          while (lastCjk > firstCjk && !CJK_CHAR_REGEX.test(raw[lastCjk]))
+            lastCjk -= 1
+
+          const text = raw.slice(firstCjk, lastCjk + 1)
+          if (!text)
+            continue
+          if (!shouldExtract(text, rules))
+            continue
+
+          const segStart = s + firstCjk
+          detections.push({
+            text,
+            fullText: text,
+            start: segStart,
+            end: segStart + text.length,
+            source: 'js-template-segment',
+          })
+        }
+        return
+      }
+
       handlePath(path, 'js-template')
     },
     JSXText(path: any) {

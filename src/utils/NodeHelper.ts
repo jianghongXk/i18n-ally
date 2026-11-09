@@ -3,7 +3,7 @@ import { Node, Config, Global } from '~/core'
 export class NodeHelper {
   static isSource(node: Node) {
     if (node.type === 'record')
-      return node.locale === Config.sourceLanguage
+      return Config.isSameLocale(node.locale, Config.sourceLanguage)
     return false
   }
 

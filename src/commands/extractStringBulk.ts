@@ -7,6 +7,7 @@ import { Commands } from '~/commands'
 import { extractHardStrings, generateKeyFromText } from '~/core/Extract'
 import { Config, Global } from '~/core'
 import { parseHardString } from '~/extraction/parseHardString'
+import { splitUnitOrStandalone } from '~/extraction/utils'
 import { DetectionResultToExtraction } from '~/editor/extract'
 import { Log } from '~/utils'
 import { gitignoredGlob } from '~/utils/glob'
@@ -54,6 +55,9 @@ export async function BatchHardStringExtraction(...args: any[]) {
   Log.info('📤 Bulk extracting')
   Log.info(documents.map(i => `  ${i?.uri.fsPath}`).join('\n'))
 
+  // same text must resolve to the same key across the whole run
+  const textKeyCache = new Map<string, string>()
+
   for (const document of documents) {
     if (!document)
       continue
@@ -66,47 +70,62 @@ export async function BatchHardStringExtraction(...args: any[]) {
 
       const usedKeys: string[] = []
 
+      const extracts = result.map((i) => {
+        const options = DetectionResultToExtraction(i, document)
+
+        if (options.rawText && !options.text) {
+          const result = parseHardString(options.rawText, options.document.languageId, options.isDynamic)
+          options.text = result?.text || ''
+          options.args = result?.args
+        }
+
+        const { rawText, text, range, args } = options
+        const filepath = document.uri.fsPath
+
+        // split trailing unit suffix like "(kW)" out of the text,
+        // so the key/value only contains the translatable part,
+        // and the replacement becomes `$t('key') + '(kW)'`
+        const { text: mainText, suffix } = args?.length
+          ? { text, suffix: '' }
+          : splitUnitOrStandalone(text)
+
+        const keypath = generateKeyFromText(suffix ? mainText : (rawText || text), filepath, true, usedKeys)
+        const templates = Global.interpretRefactorTemplates(keypath, args, document, i).filter(Boolean)
+
+        if (!templates.length) {
+          Log.warn(`No refactor template found for "${keypath}" in "${filepath}"`)
+          return undefined
+        }
+
+        usedKeys.push(keypath)
+
+        return {
+          range,
+          replaceTo: templates[0],
+          keypath,
+          message: mainText,
+          unit: suffix || undefined,
+          locale: Config.displayLanguage,
+        }
+      })
+        .filter(notNullish)
+
       await extractHardStrings(
         document,
-        result.map((i) => {
-          const options = DetectionResultToExtraction(i, document)
-
-          if (options.rawText && !options.text) {
-            const result = parseHardString(options.rawText, options.document.languageId, options.isDynamic)
-            options.text = result?.text || ''
-            options.args = result?.args
-          }
-
-          const { rawText, text, range, args } = options
-          const filepath = document.uri.fsPath
-          const keypath = generateKeyFromText(rawText || text, filepath, true, usedKeys)
-          const templates = Global.interpretRefactorTemplates(keypath, args, document, i).filter(Boolean)
-
-          if (!templates.length) {
-            Log.warn(`No refactor template found for "${keypath}" in "${filepath}"`)
-            return undefined
-          }
-
-          usedKeys.push(keypath)
-
-          return {
-            range,
-            replaceTo: templates[0],
-            keypath,
-            message: text,
-            locale: Config.displayLanguage,
-          }
-        })
-          .filter(notNullish),
+        extracts,
         true,
+        textKeyCache,
       )
+
     }
     catch (e) {
       Log.error(`Failed to extract ${document.fileName}`)
       Log.error(e, false)
     }
   }
+
 }
+
 
 const m: ExtensionModule = () => {
   return [

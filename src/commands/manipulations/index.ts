@@ -1,6 +1,7 @@
 export * from './translateKey'
 export * from './translateAllMissing'
 export * from './deleteAllMissing'
+export * from './deleteAlphaKeys'
 export * from './gotoKey'
 export * from './copyKey'
 export * from './renameKey'

@@ -7,6 +7,10 @@ const FilterWarningsPlugin = require('webpack-filter-warnings-plugin')
 const { TsconfigPathsPlugin } = require('tsconfig-paths-webpack-plugin')
 const { createUnplugin } = require('unplugin')
 
+// fast mode for local iteration: no source map, no type-check/declaration emit
+// (type checking is done separately by `tsc --noEmit`)
+const FAST = !!process.env.I18N_ALLY_FAST
+
 /** @type {import('webpack').Configuration} */
 const config = {
   target: 'node',
@@ -21,7 +25,7 @@ const config = {
     libraryTarget: 'commonjs2',
     devtoolModuleFilenameTemplate: '../[resource-path]',
   },
-  devtool: 'source-map',
+  devtool: FAST ? false : 'source-map',
   externals: {
     'vscode': 'commonjs vscode',
     'nodejieba': 'nodejieba',
@@ -48,6 +52,9 @@ const config = {
         use: [
           {
             loader: 'ts-loader',
+            options: FAST
+              ? { transpileOnly: true, onlyCompileBundledFiles: true }
+              : {},
           },
         ],
       },

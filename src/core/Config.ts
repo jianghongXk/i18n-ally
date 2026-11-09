@@ -60,7 +60,7 @@ export class Config {
 
   // languages
   static get displayLanguage(): string {
-    return this.normalizeLocale(Config.getConfig<string>('displayLanguage') || '')
+    return this.canonicalLocale(this.normalizeLocale(Config.getConfig<string>('displayLanguage') || ''))
   }
 
   static set displayLanguage(value) {
@@ -68,7 +68,7 @@ export class Config {
   }
 
   static get sourceLanguage(): string {
-    return this.normalizeLocale(this.getConfig<string>('sourceLanguage') || '', '') || this.displayLanguage || 'en'
+    return this.canonicalLocale(this.normalizeLocale(this.getConfig<string>('sourceLanguage') || '', '') || this.displayLanguage || 'en')
   }
 
   static set sourceLanguage(value) {
@@ -82,6 +82,39 @@ export class Config {
 
   static normalizeLocale(locale: string, fallback?: string, strict?: boolean) {
     return this.tagSystem.normalize(locale, fallback, strict)
+  }
+
+  /**
+   * locale 标识的大小写不敏感比较：`zh-cn` 与 `zh-CN` 视为同一个。
+   * 文件名通常是小写（zh-cn.json），而设置里常写成 zh-CN，直接 `===` 会认成两个语言，
+   * 表现为「明明有语言文件却提示输入文件路径」。
+   */
+  static isSameLocale(a?: string | null, b?: string | null): boolean {
+    if (!a || !b)
+      return false
+    return a.toLowerCase() === b.toLowerCase()
+  }
+
+  /**
+   * 把 locale 规范成「语言小写、地区大写、文字首字母大写」：`zh-cn` → `zh-CN`，`zh-hans-cn` → `zh-Hans-CN`。
+   * `bcp-47` 的 normalize 不会改大小写，导致文件名解析出来的 `zh-cn` 与配置里的 `zh-CN` 对不上，
+   * 而 `Node.locales` 是按 locale 字符串直接索引的，对不上就取不到值。统一走这里。
+   */
+  static canonicalLocale(locale: string): string {
+    if (!locale)
+      return locale
+    return locale
+      .split(/[-_]/)
+      .map((part, index) => {
+        if (index === 0)
+          return part.toLowerCase()
+        if (part.length === 4)
+          return part[0].toUpperCase() + part.slice(1).toLowerCase()
+        if (part.length === 2 || /^\d{3}$/.test(part))
+          return part.toUpperCase()
+        return part.toLowerCase()
+      })
+      .join('-')
   }
 
   static getBCP47(locale: string) {
@@ -230,6 +263,11 @@ export class Config {
 
   static get translateSaveAsCandidates(): boolean {
     return this.getConfig<boolean>('translate.saveAsCandidates') || false
+  }
+
+  /** 提取完成后自动把新词条翻译到其它语言（复用 translate.engines 的引擎配置） */
+  static get translateOnExtract(): boolean {
+    return this.getConfig<boolean>('translate.onExtract') ?? false
   }
 
   static get frameworksRubyRailsScopeRoot(): string {
@@ -455,8 +493,30 @@ export class Config {
     return this.getConfig<string>('extract.keyPrefix') ?? ''
   }
 
+
   static get extractKeyMaxLength() {
     return this.getConfig<number>('extract.keyMaxLength') ?? Infinity
+  }
+
+  /**
+   * 提取后若脚本文件里用到了 $t 却没有导入，自动插入这条 import。
+   * 为空表示不处理；仅对 ts/js/tsx/jsx 生效（.vue 里 $t 属于模板作用域，不在此处理）。
+   */
+  static get extractAutoImportStatement(): string {
+    return (this.getConfig<string>('extract.autoImportStatement') ?? '').trim()
+  }
+
+  /** 提取后把本页面用到的 key 同步到后端（等价于管理页的「新增前端」） */
+  static get syncBackend() {
+    return {
+      enabled: this.getConfig<boolean>('syncBackend.enabled') ?? false,
+      baseUrl: (this.getConfig<string>('syncBackend.baseUrl') ?? '').trim(),
+      type: (this.getConfig<string>('syncBackend.type') ?? '5').trim(),
+      tokenHeader: (this.getConfig<string>('syncBackend.tokenHeader') ?? 'Authorization').trim(),
+      token: (this.getConfig<string>('syncBackend.token') ?? '').trim(),
+      syncEndpoint: (this.getConfig<string>('syncBackend.syncEndpoint') ?? 'http://localhost:9006/locales-sync').trim(),
+      translateAfterSync: this.getConfig<boolean>('syncBackend.translateAfterSync') ?? true,
+    }
   }
 
   static get extractAutoDetect() {
@@ -550,6 +610,28 @@ export class Config {
     return await workspace
       .getConfiguration(EXT_NAMESPACE)
       .update(key, value, isGlobal)
+  }
+
+  /**
+   * 写入忽略规则并等待落盘。
+   * `setConfig` 内部是 `await workspace.getConfiguration().update()`，
+   * 而 getter 每次走 `workspace.getConfiguration().get()` 实时读；
+   * 若赋值后立刻读，拿到的仍是旧值。需要「写规则 → 立刻重新检测」的场景必须用这两个方法。
+   */
+  static async updateExtractIgnored(value: string[]): Promise<void> {
+    await this.setConfig('extract.ignored', value)
+  }
+
+  static async updateExtractIgnoredByFiles(value: Record<string, string[]>): Promise<void> {
+    await this.setConfig('extract.ignoredByFiles', value)
+  }
+
+  /**
+   * 通用写入入口：await 落盘后返回。
+   * 引导流程要连着写多项配置再读，必须走这个而不是直接赋值 setter。
+   */
+  static async updateConfig(key: string, value: any, isGlobal = false): Promise<void> {
+    await this.setConfig(key, value, isGlobal)
   }
 
   static get baiduApiSecret() {

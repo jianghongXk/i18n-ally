@@ -328,6 +328,14 @@ export abstract class Loader extends Disposable {
     return false
   }
 
+  /**
+   * 外部进程（同步脚本等）改写词条文件后，主动重读磁盘。
+   * 默认不读盘；真正持有文件的 loader 覆写它并返回 true 表示已重载。
+   */
+  async reloadFromDisk(): Promise<boolean> {
+    return false
+  }
+
   searchKeyForTranslations(text: string, locale = Config.sourceLanguage) {
     return this.keys
       .find(i => this.getTranslationsByKey(i, false)?.[locale]?.value === text)

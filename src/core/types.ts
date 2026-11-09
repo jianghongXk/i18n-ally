@@ -157,7 +157,7 @@ export enum TargetPickingStrategy {
   MostSimilarByKey = 'most-similar-by-key',
 }
 
-export type DetectionSource = 'html-attribute' | 'html-attribute-string' | 'html-inline' | 'html-interpolation' | 'js-string' | 'js-template' | 'jsx-text'
+export type DetectionSource = 'html-attribute' | 'html-attribute-string' | 'html-inline' | 'html-interpolation' | 'js-string' | 'js-template' | 'js-template-segment' | 'jsx-text'
 
 export interface DetectionResult {
   text: string
@@ -178,6 +178,8 @@ export interface ExtractInfo {
   keypath?: string
   message?: string
   locale?: string
+  /** raw trailing unit suffix (incl. parens, e.g. `(元/MWh)`) split from `message` */
+  unit?: string
 }
 
 export interface CustomRefactorTemplate {

@@ -260,12 +260,50 @@ export function detect(
       const interpolationRegex = /\{\{([\s\S]*?)\}\}/g
       let match
 
+      const interpolationRanges: [number, number][] = []
       while ((match = interpolationRegex.exec(fullText)) !== null) {
         const exprStart = start + match.index + 2
         const exprText = match[1]
 
         const strings = extractStringsFromExpression(exprText, exprStart, rules, dynamicRules)
         detections.push(...strings)
+
+        interpolationRanges.push([match.index, match.index + match[0].length])
+      }
+
+      // Text node mixed with interpolations (e.g. `{{ year }} 年`): keep the
+      // interpolations untouched and extract only the static text segments
+      // around them, so the replacement becomes `{{ year }} {{ $t('key') }}`
+      // instead of swallowing the whole expression into a single key.
+      if (interpolationRanges.length) {
+        const segments: [number, number][] = []
+        let cursor = 0
+        for (const [s, e] of interpolationRanges) {
+          if (s > cursor)
+            segments.push([cursor, s])
+          cursor = e
+        }
+        if (cursor < fullText.length)
+          segments.push([cursor, fullText.length])
+
+        for (const [s, e] of segments) {
+          const seg = fullText.slice(s, e)
+          const trimmed = seg.trim()
+          if (!trimmed)
+            continue
+          if (!shouldExtract(trimmed, rules))
+            continue
+
+          const segStart = start + s + (seg.length - seg.trimStart().length)
+          detections.push({
+            text: trimmed,
+            fullText: trimmed,
+            start: segStart,
+            end: segStart + trimmed.length,
+            source: 'html-inline',
+          })
+        }
+        return
       }
 
       if (!shouldExtract(text, rules))

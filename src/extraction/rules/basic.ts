@@ -11,8 +11,8 @@ export class BasicExtrationRule extends ExtractionRule {
     // ❌ brackets
     if (s.match(/^{.*}$/))
       return ExtractionScore.MustExclude
-    // ✅ has a space, and any meaning full letters
-    if (s.includes(' ') && s.match(/\w/))
+    // ✅ has a space, and any meaning full letters（数字不算，避免 '0 0 1024 1024' 这类被当成自然语言）
+    if (s.includes(' ') && /[A-Za-z\u3400-\u4dbf\u4e00-\u9fff]/.test(s))
       return ExtractionScore.ShouldInclude
     // ❌ camel case
     if (s.match(/[a-z][A-Z0-9]/))

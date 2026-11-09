@@ -9,6 +9,7 @@ import { extractHardStrings, generateKeyFromText, Config, CurrentFile, Detection
 import i18n from '~/i18n'
 
 import { parseHardString } from '~/extraction/parseHardString'
+import { splitUnitOrStandalone } from '~/extraction/utils'
 
 interface QuickPickItemWithKey extends QuickPickItem {
   keypath: string
@@ -61,7 +62,14 @@ async function ExtractOrInsertCommnad(options?: ExtractTextOptions, detection?: 
   const { text, rawText, range, args, document, isInsert } = options
   const filepath = document.uri.fsPath
 
-  const default_keypath = generateKeyFromText(rawText || text, filepath)
+  // split trailing unit suffix like "(kW)" out of the text,
+  // so the key/value only contains the translatable part,
+  // and the replacement becomes `$t('key') + '(kW)'`
+  const { text: mainText, suffix } = args?.length
+    ? { text, suffix: '' }
+    : splitUnitOrStandalone(text)
+
+  const default_keypath = generateKeyFromText(suffix ? mainText : (rawText || text), filepath)
 
   const existingItems: QuickPickItemWithKey[]
     = isInsert
@@ -159,7 +167,8 @@ async function ExtractOrInsertCommnad(options?: ExtractTextOptions, detection?: 
       range,
       replaceTo: replacer,
       keypath: shouldOverride === 'skip' ? undefined : writeKeypath,
-      message: text,
+      message: mainText,
+      unit: suffix || undefined,
       locale,
     }])
   }
@@ -204,20 +213,24 @@ async function ExtractOrInsertCommnad(options?: ExtractTextOptions, detection?: 
   await picker.show()
 }
 
-function ExtractIngore(text: string, document?: TextDocument) {
+async function ExtractIngore(text: string, document?: TextDocument) {
   if (document) {
     const path = relative(Config.root, document.uri.fsPath)
-    const obj = Config.extractIgnoredByFiles
-    if (!obj[path])
-      obj[path] = []
-    obj[path].push(text)
-    Config.extractIgnoredByFiles = obj
+    const obj = { ...Config.extractIgnoredByFiles }
+    const list = [...(obj[path] ?? [])]
+    if (!list.includes(text))
+      list.push(text)
+    obj[path] = list
+    // 必须等配置真正写入，否则下面重新检测时读到的还是旧规则
+    await Config.updateExtractIgnoredByFiles(obj)
   }
   else {
-    Config.extractIgnored = [...Config.extractIgnored, text]
+    const list = Config.extractIgnored
+    if (!list.includes(text))
+      await Config.updateExtractIgnored([...list, text])
   }
 
-  CurrentFile.detectHardStrings(true)
+  await CurrentFile.detectHardStrings(true)
 }
 
 const m: ExtensionModule = () => {

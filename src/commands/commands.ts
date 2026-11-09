@@ -48,4 +48,8 @@ export const enum Commands {
   review_apply_translation = 'i18n-ally.review.apply-translation',
   review_apply_suggestion = 'i18n-ally.review.apply-suggestion',
   deepl_usage = 'i18n-ally.deepl-usage',
+  delete_alpha_keys = 'i18n-ally.delete-alpha-keys',
+  set_backend_auth = 'i18n-ally.set-backend-auth',
+  sync_keys_to_backend = 'i18n-ally.sync-keys-to-backend',
+  setup_wizard = 'i18n-ally.setup-wizard',
 }

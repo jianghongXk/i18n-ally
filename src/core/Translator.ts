@@ -82,6 +82,7 @@ export class Translator {
     nodes: AccaptableTranslateItem[],
     sourceLanguage: string,
     targetLocales?: string[],
+    options?: { skipConfirm?: boolean },
   ) {
     if (!nodes.length)
       return
@@ -95,7 +96,7 @@ export class Translator {
       return
     }
 
-    if (jobs.length > 1) {
+    if (jobs.length > 1 && !options?.skipConfirm) {
       const Yes = i18n.t('prompt.button_yes')
       const result = await window.showWarningMessage(
         i18n.t('prompt.translate_multiple_confirm', jobs.length),
@@ -292,7 +293,7 @@ export class Translator {
     if (token?.isCancellationRequested)
       return
 
-    if (locale === source)
+    if (Config.isSameLocale(locale, source))
       throw new AllyError(ErrorType.translating_same_locale)
 
     const value = this.getValueOfKey(loader, keypath, source)

@@ -1,7 +1,7 @@
 {
   "publisher": "lokalise",
   "name": "i18n-ally",
-  "version": "2.16.0",
+  "version": "2.16.7-dev.52",
   "displayName": "i18n Ally Support Regex",
   "description": "🌍 All in one i18n extension for VS Code with regex support",
   "keywords": [
@@ -24,6 +24,7 @@
     "build": "rimraf dist && nr i18n:build && nr main:build && nr editor:build && esno scripts/post-build.ts",
     "dev": "run-p *:dev",
     "main:build": "cross-env I18N_ALLY_ENV=production webpack --mode development",
+    "main:build:fast": "cross-env I18N_ALLY_ENV=production I18N_ALLY_FAST=1 webpack --mode development",
     "main:dev": "cross-env I18N_ALLY_ENV=development webpack --mode development --watch --info-verbosity verbose",
     "editor:build": "parcel build src/webview/src/index.html --out-dir dist/editor --no-minify",
     "editor:dev": "nodemon -w src/webview/src -e js,ts,vue,html --exec \"nr editor:build\"",
@@ -227,6 +228,12 @@
         "icon": "$(trash)"
       },
       {
+        "command": "i18n-ally.delete-alpha-keys",
+        "category": "%extname%",
+        "title": "清理含字母的 key",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "i18n-ally.edit-key",
         "category": "%extname%",
         "title": "%command.edit_key%",
@@ -257,7 +264,7 @@
       {
         "command": "i18n-ally.extract-hard-strings-batch",
         "category": "%extname%",
-        "title": "Extract all hard-coded strings (experimental)"
+        "title": "%command.extract.hard-strings-batch%"
       },
       {
         "command": "i18n-ally.detect_hard_strings",
@@ -409,9 +416,43 @@
         "command": "i18n-ally.extract-enable-auto-detect",
         "category": "%extname%",
         "title": "%command.extract.enable-auto-detect%"
+      },
+      {
+        "command": "i18n-ally.set-backend-auth",
+        "category": "%extname%",
+        "title": "设置后端账号（用于同步 key）"
+      },
+      {
+        "command": "i18n-ally.sync-keys-to-backend",
+        "category": "%extname%",
+        "title": "同步本文件 key 到后端"
+      },
+      {
+        "command": "i18n-ally.setup-wizard",
+        "category": "%extname%",
+        "title": "初始化配置引导（语言文件 / 翻译引擎 / 百度密钥）"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "i18n-ally.extract-hard-strings-batch",
+        "key": "ctrl+alt+i",
+        "when": "editorTextFocus && (editorLangId == vue || editorLangId == vue-html || editorLangId == typescript || editorLangId == javascript || editorLangId == html || editorLangId == typescriptreact || editorLangId == javascriptreact)"
       }
     ],
     "menus": {
+      "editor/context": [
+        {
+          "command": "i18n-ally.extract-hard-strings-batch",
+          "group": "1_modification@100",
+          "when": "!editorReadonly && (editorLangId == vue || editorLangId == vue-html || editorLangId == typescript || editorLangId == javascript || editorLangId == html || editorLangId == typescriptreact || editorLangId == javascriptreact)"
+        },
+        {
+          "command": "i18n-ally.sync-keys-to-backend",
+          "group": "1_modification@101",
+          "when": "!editorReadonly && (editorLangId == vue || editorLangId == vue-html || editorLangId == typescript || editorLangId == javascript || editorLangId == html || editorLangId == typescriptreact || editorLangId == javascriptreact)"
+        }
+      ],
       "commandPalette": [
         {
           "command": "i18n-ally.set-display-language",
@@ -633,6 +674,11 @@
         {
           "command": "i18n-ally.new-key",
           "group": "navigation",
+          "when": "view =~ /i18n-ally-locales-tree/"
+        },
+        {
+          "command": "i18n-ally.delete-alpha-keys",
+          "group": "navigation@1",
           "when": "view =~ /i18n-ally-locales-tree/"
         },
         {
@@ -1050,6 +1096,11 @@
           "default": false,
           "description": "%config.translate_save_as_candidates%"
         },
+        "i18n-ally.translate.onExtract": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.translate_on_extract%"
+        },
         "i18n-ally.translate.fallbackToKey": {
           "type": "boolean",
           "default": false,
@@ -1265,36 +1316,58 @@
         "i18n-ally.extract.parsers.html": {
           "type": "object",
           "default": {},
-          "description": "Parser options for extracting HTML, see https://github.com/lokalise/i18n-ally/blob/master/src/extraction/parsers/options.ts"
+          "description": "%config.extract_parsers_html%"
         },
         "i18n-ally.extract.parsers.babel": {
           "type": "object",
           "default": {},
-          "description": "Parser options for extracting JS/TS/JSX/TSX, see https://github.com/lokalise/i18n-ally/blob/master/src/extraction/parsers/options.ts"
+          "description": "%config.extract_parsers_babel%"
         },
         "i18n-ally.extract.autoDetect": {
           "type": "boolean",
           "default": false,
-          "description": "Enables hard-coded strings detection automatically whenever opening a supported file"
+          "description": "%config.extract_auto_detect%"
+        },
+        "i18n-ally.extract.autoImportStatement": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "%config.extract_auto_import_statement%"
+        },
+        "i18n-ally.syncBackend.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.sync_backend_enabled%"
+        },
+        "i18n-ally.syncBackend.baseUrl": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "%config.sync_backend_base_url%"
+        },
+        "i18n-ally.syncBackend.type": {
+          "type": "string",
+          "default": "5",
+          "description": "%config.sync_backend_type%"
         },
         "i18n-ally.extract.ignored": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Strings to be ignored on hard-coded strings detection"
+          "description": "%config.extract_ignored%"
         },
         "i18n-ally.extract.ignoredRegex": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Regular expressions to be ignored on hard-coded strings detection"
+          "description": "%config.extract_ignored_regex%"
         },
         "i18n-ally.extract.ignoredByFiles": {
           "type": "object",
           "default": {},
-          "description": "Strings to be ignored on hard-coded strings detection, by files"
+          "description": "%config.extract_ignored_by_files%"
         },
         "i18n-ally.parserOptions": {
           "type": "object"
@@ -1362,6 +1435,31 @@
         },
         "vue-i18n-ally.readonly": {
           "deprecationMessage": "%config.deprecated%"
+        },
+        "i18n-ally.syncBackend.tokenHeader": {
+          "type": "string",
+          "default": "Authorization",
+          "description": "%config.sync_backend_token_header%"
+        },
+        "i18n-ally.syncBackend.token": {
+          "type": "string",
+          "default": "",
+          "description": "%config.sync_backend_token%"
+        },
+        "i18n-ally.extract.requireCJK": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.extract_require_cjk%"
+        },
+        "i18n-ally.syncBackend.syncEndpoint": {
+          "type": "string",
+          "default": "http://localhost:9006/locales-sync",
+          "description": "%config.sync_backend_sync_endpoint%"
+        },
+        "i18n-ally.syncBackend.translateAfterSync": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.sync_backend_translate_after_sync%"
         }
       }
     }

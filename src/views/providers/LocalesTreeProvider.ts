@@ -1,10 +1,33 @@
 import { TreeItem, ExtensionContext, TreeDataProvider, EventEmitter, Event } from 'vscode'
-import { sortBy, throttle } from 'lodash'
+import { throttle } from 'lodash'
 import { LocaleTreeItem } from '../items/LocaleTreeItem'
 import { EditorPanel } from '../../webview/panel'
 import { THROTTLE_DELAY } from '../../meta'
 import { resolveFlattenRootKeypath } from '~/utils'
 import { Node, Loader, CurrentFile, LocaleTree, LocaleNode } from '~/core'
+
+const HAS_ALPHA = /[A-Za-z]/
+
+/**
+ * 翻译树的 key 排序：带字母的 key 全部排在上面（按字符串序），
+ * 纯数字的排在下面并按数值大小排。这样随机码 key 不会被后端数字码打断。
+ */
+function compareKeypath(a: string, b: string) {
+  const aAlpha = HAS_ALPHA.test(a)
+  const bAlpha = HAS_ALPHA.test(b)
+
+  if (aAlpha !== bAlpha)
+    return aAlpha ? -1 : 1
+
+  if (!aAlpha) {
+    const na = Number(a)
+    const nb = Number(b)
+    if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb)
+      return na - nb
+  }
+
+  return a < b ? -1 : a > b ? 1 : 0
+}
 
 export class LocalesTreeProvider implements TreeDataProvider<LocaleTreeItem> {
   protected loader: Loader
@@ -80,7 +103,12 @@ export class LocalesTreeProvider implements TreeDataProvider<LocaleTreeItem> {
   }
 
   sort(elements: LocaleTreeItem[]) {
-    return sortBy(elements, 'node.type', 'node.keypath')
+    return [...elements].sort((a, b) => {
+      // 先按节点类型（node < record < tree），与原 sortBy 行为一致
+      if (a.node.type !== b.node.type)
+        return a.node.type < b.node.type ? -1 : 1
+      return compareKeypath(a.node.keypath, b.node.keypath)
+    })
   }
 
   async getChildren(element?: LocaleTreeItem) {

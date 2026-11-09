@@ -16,6 +16,31 @@ import i18n from '~/i18n'
 
 const THROTTLE_DELAY = 1500
 
+const NUMERIC_KEY_REGEX = /^\d+$/
+
+/**
+ * Key comparator used when writing locale files: pure numeric keys (e.g. `401`,
+ * `1002785`) are grouped first and compared as numbers, so they never sit in the
+ * middle of alphabetically sorted alphanumeric keys.
+ */
+export function numericFirstCompare(a: string, b: string) {
+  const aIsNum = NUMERIC_KEY_REGEX.test(a)
+  const bIsNum = NUMERIC_KEY_REGEX.test(b)
+
+  if (aIsNum && bIsNum) {
+    const diff = Number(a) - Number(b)
+    if (diff)
+      return diff
+    return a < b ? -1 : a > b ? 1 : 0
+  }
+  if (aIsNum)
+    return -1
+  if (bIsNum)
+    return 1
+
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
 export class LocaleLoader extends Loader {
   private _files: Record<string, ParsedFile> = {}
   private _path_matchers: {regex: RegExp; matcher: string}[] = []
@@ -77,8 +102,7 @@ export class LocaleLoader extends Loader {
   // #region throttled functions
   private throttledFullReload = throttle(async() => {
     Log.info('🔄 Perfroming a full reload', 2)
-    await this.loadAll(false)
-    this.update()
+    await this.reloadFromDisk()
   }, THROTTLE_DELAY, { leading: true })
 
   private throttledUpdate = throttle(() => {
@@ -110,7 +134,7 @@ export class LocaleLoader extends Loader {
   private getFilepathsOfLocale(locale: string) {
     // TODO: maybe shadow options
     return Object.values(this._files)
-      .filter(f => f.locale === locale)
+      .filter(f => Config.isSameLocale(f.locale, locale))
       .map(f => f.filepath)
   }
 
@@ -154,12 +178,12 @@ export class LocaleLoader extends Loader {
     if (Config.namespace) {
       const namespace = pending.namespace || this.getNodeByKey(keypath)?.meta?.namespace
 
-      const filesSameLocale = this.files.find(f => f.namespace === namespace && f.locale === locale)
+      const filesSameLocale = this.files.find(f => f.namespace === namespace && Config.isSameLocale(f.locale, locale))
 
       if (filesSameLocale)
         return filesSameLocale.filepath
 
-      const fileSource = this.files.find(f => f.namespace === namespace && f.locale === Config.sourceLanguage)
+      const fileSource = this.files.find(f => f.namespace === namespace && Config.isSameLocale(f.locale, Config.sourceLanguage))
       if (fileSource && fileSource.matcher) {
         const relative = path.relative(fileSource.dirpath, fileSource.filepath)
         const newFilepath = ReplaceLocale(relative, fileSource.matcher, locale, Global.enabledParserExts)
@@ -327,7 +351,7 @@ export class LocaleLoader extends Loader {
 
         const compare = Config.sortCompare === 'locale'
           ? getLocaleCompare(Config.sortLocale, locale)
-          : undefined
+          : numericFirstCompare
         await parser.save(filepath, processed, Config.sortKeys, compare)
 
         if (this._files[filepath]) {
@@ -422,7 +446,7 @@ export class LocaleLoader extends Loader {
 
     let locale = match.groups?.locale
     if (locale)
-      locale = Config.normalizeLocale(locale, '')
+      locale = Config.canonicalLocale(Config.normalizeLocale(locale, ''))
     else
       locale = Config.sourceLanguage
 
@@ -527,6 +551,19 @@ export class LocaleLoader extends Loader {
     }
 
     return { dirpath, relative }
+  }
+
+  /**
+   * 重新扫描并读取 localesPaths 下所有词条文件，然后通知订阅者。
+   *
+   * 供「同步到后端 / 本地词条刷新」成功后主动调用：那些流程由外部 python 脚本写盘，
+   * 插件只能等 workspace 的文件监听，而外部进程短时间连续重写多个文件时事件可能
+   * 丢失或被防抖合并，磁盘已更新、内存里却还是旧词条。主动重载不依赖监听是否可靠。
+   */
+  async reloadFromDisk(): Promise<boolean> {
+    await this.loadAll(false)
+    this.update()
+    return true
   }
 
   private async onFileChanged(type: string, { fsPath: filepath }: { fsPath: string }) {

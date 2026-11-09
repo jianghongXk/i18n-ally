@@ -12,6 +12,8 @@ import deepl from './deepl'
 import gotoRange from './gotoRange'
 import gotoNextUsage from './gotoNextUsage'
 import batchHardStringsExtract from './extractStringBulk'
+import backendAuth from './backendAuth'
+import setupWizard from './setupWizard'
 import { ExtensionModule } from '~/modules'
 
 const m: ExtensionModule = (ctx) => {
@@ -22,6 +24,8 @@ const m: ExtensionModule = (ctx) => {
     extractText(ctx),
     detectHardStrings(ctx),
     batchHardStringsExtract(ctx),
+    backendAuth(ctx),
+    setupWizard(ctx),
     help(ctx),
     refreshUsageReport(ctx),
     editor(ctx),

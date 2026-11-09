@@ -105,6 +105,15 @@ export class KeyDetector {
     }
   }
 
+  /**
+   * 清空全部 key 位置缓存。
+   * 外部脚本可能同时改写词条文件和源码里的 $t key，此时文档版本号未必变化，
+   * onDidChangeTextDocument 也不会触发，必须主动清一次。
+   */
+  static purgeAllCache() {
+    this._get_keys_cache = {}
+  }
+
   private static _get_keys_cache: Record<string, KeyInDocument[]> = {}
 
   static getKeys(document: TextDocument | string, regs?: RegExp[], dotEnding?: boolean, scopes?: ScopeRange[]): KeyInDocument[] {

@@ -105,17 +105,31 @@ const annotation: ExtensionModule = (ctx) => {
         ? `${namespace}.${key.key}`
         : key.key
 
-      const range = new Range(
-        document.positionAt(key.start),
-        document.positionAt(key.end),
+      let start = key.start
+      let end = key.end
+      let range = new Range(
+        document.positionAt(start),
+        document.positionAt(end),
       )
 
       // 偏移若与当前文本对不上（例如来自过期缓存的旧位置），
-      // 直接跳过这一条，避免把注解画到无关代码上
+      // 先在附近找一下这个 key 的真实位置，找不到才跳过——
+      // 直接跳过会导致「改了一行内容后这条注解就消失」，很难解释。
       if (usageType !== 'locale') {
         const bareKey = keypath.split('.').pop()?.split('/').pop()?.split(':').pop() ?? ''
-        if (bareKey && !document.getText(range).includes(bareKey))
-          continue
+        if (bareKey && !document.getText(range).includes(bareKey)) {
+          const docText = document.getText()
+          const from = Math.max(0, start - 300)
+          const idx = docText.indexOf(bareKey, from)
+          if (idx >= 0 && idx <= Math.min(docText.length, end + 300)) {
+            start = idx
+            end = idx + bareKey.length
+            range = new Range(document.positionAt(start), document.positionAt(end))
+          }
+          else {
+            continue
+          }
+        }
       }
 
       const rangeWithQuotes = key.quoted

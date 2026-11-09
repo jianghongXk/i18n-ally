@@ -2,7 +2,10 @@ import { ExtensionContext } from 'vscode'
 import { flatten } from 'lodash'
 import { version } from '../package.json'
 import { Global, Config, KeyDetector, CurrentFile } from '~/core'
+import { registerReloadOnUpdate } from '~/core/ReloadOnUpdate'
+import { ensureBackendAuthConfigured } from '~/core/BizSync'
 import commandsModules, { Commands } from '~/commands'
+import { maybePromptSetup } from '~/commands/setupWizard'
 import viewsModules from '~/views'
 import { Log } from '~/utils'
 import i18n from '~/i18n'
@@ -19,6 +22,13 @@ export async function activate(ctx: ExtensionContext) {
   // activate the extension
   await Global.init(ctx)
   CurrentFile.watch(ctx)
+  registerReloadOnUpdate(ctx)
+
+  // 开了后端同步却没配账号时，启动就问一次（不阻塞后续激活）
+  void ensureBackendAuthConfigured()
+
+  // 连语言文件目录都没配时，第一次激活提示一次初始化引导
+  void maybePromptSetup(ctx)
 
   const modules = [
     commandsModules,

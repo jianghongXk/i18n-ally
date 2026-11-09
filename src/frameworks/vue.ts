@@ -51,6 +51,13 @@ class VueFramework extends Framework {
         return [`$t(${params})`]
       case 'js-string':
         return [`this.$t(${params})`, `i18n.t(${params})`, `t(${params})`]
+      case 'js-template':
+        // template literals live in script context — never wrap with {{ }},
+        // and keep the interpolation args as an array for vue-i18n
+        return [`$t(${params})`, `this.$t(${params})`, `i18n.t(${params})`, `t(${params})`]
+      case 'js-template-segment':
+        // static chunk inside a template literal, must stay an interpolation
+        return [`\${$t(${params})}`]
     }
 
     return [

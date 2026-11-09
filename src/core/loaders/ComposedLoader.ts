@@ -113,6 +113,22 @@ export class ComposedLoader extends Loader {
     this._onDidChange.fire(src || this.name)
   }
 
+  /**
+   * 组合 loader 自己不读盘，把重载委派给各子 loader。
+   * 只要有一个真的重载过，就把扁平树标脏并通知订阅者（编辑器注解、侧边栏等）。
+   */
+  async reloadFromDisk(): Promise<boolean> {
+    let changed = false
+    for (const loader of this._loaders)
+      changed = await loader.reloadFromDisk() || changed
+
+    if (changed) {
+      this._isFlattenLocaleTreeDirty = true
+      this.fire('reloadFromDisk')
+    }
+    return changed
+  }
+
   async write(pendings: PendingWrite | PendingWrite[], triggerFullfilled = true) {
     if (!Array.isArray(pendings))
       pendings = [pendings]

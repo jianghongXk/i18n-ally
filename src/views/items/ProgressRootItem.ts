@@ -30,15 +30,15 @@ export class ProgressRootItem extends ProgressBaseItem {
   }
 
   get visible() {
-    return !Config.ignoredLocales.includes(this.locale)
+    return !Config.ignoredLocales.some(i => Config.isSameLocale(i, this.locale))
   }
 
   get isSource() {
-    return this.locale === Config.sourceLanguage
+    return Config.isSameLocale(this.locale, Config.sourceLanguage)
   }
 
   get isDisplay() {
-    return this.locale === Config.displayLanguage
+    return Config.isSameLocale(this.locale, Config.displayLanguage)
   }
 
   // @ts-expect-error

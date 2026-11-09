@@ -475,7 +475,7 @@ export class Global {
 
   static getVisibleLocales(locales: string[]) {
     const ignored = Config.ignoredLocales
-    return locales.filter(locale => !ignored.includes(locale))
+    return locales.filter(locale => !ignored.some(i => Config.isSameLocale(i, locale)))
   }
 
   static getExtractionFrameworksByLang(languageId: string) {

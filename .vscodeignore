@@ -5,6 +5,7 @@ node_modules/*
 out/**
 dist/test/**
 dist/**/*.map
+dist/**/*.d.ts
 dist/editor/*.js
 dist/editor/*.css
 src/**

@@ -10,7 +10,7 @@ export async function GoToKey(item?: LocaleTreeItem | CommandOptions | ProgressR
   if (item instanceof ProgressRootItem) {
     Telemetry.track(TelemetryKey.GoToKey, { source: ActionSource.TreeView })
     const locale = item.locale
-    const files = CurrentFile.loader.files.filter(f => f.locale === locale).map(f => f.filepath)
+    const files = CurrentFile.loader.files.filter(f => Config.isSameLocale(f.locale, locale)).map(f => f.filepath)
     let filepath: string| undefined
     if (files.length === 0) {
       return
