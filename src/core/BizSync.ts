@@ -1,6 +1,6 @@
 import axios from 'axios'
-import { Range, TextDocument, Uri, WorkspaceEdit, window, workspace } from 'vscode'
-import { Analyst, Config, CurrentFile, KeyDetector, LocaleLoader } from '~/core'
+import { TextDocument, Uri, window, workspace } from 'vscode'
+import { Config, CurrentFile } from '~/core'
 import { Log } from '~/utils'
 import { runLocaleSync } from './SyncScript'
 import { decryptField, encryptEcb, encryptField } from '~/utils/aesEcb'
@@ -237,7 +237,6 @@ export async function syncKeysToBackend(
   const base = cfg.baseUrl.replace(/\/+$/, '')
   const descs = [...descriptions.keys()]
   const result: SyncResult = { created: 0, existed: 0, linked: 0, alreadyLinked: 0, failed: 0 }
-  const resolvedIds = new Map<string, string>()
   const status = canPush
     ? window.setStatusBarMessage(`$(sync~spin) i18n: 同步 ${descs.length} 条到后端…`)
     : undefined
@@ -267,8 +266,6 @@ export async function syncKeysToBackend(
                 Log.warn(`[sync] 无法获取 ${desc} 的编码 id，跳过关联`)
                 return
               }
-
-              resolvedIds.set(desc, String(finalId))
 
               const newlyLinked = await addType(base, finalId, cfg.type, auth)
               if (newlyLinked)
@@ -300,19 +297,14 @@ export async function syncKeysToBackend(
 
   status?.dispose()
 
-  // —— 第二步：把源码里的临时 key（slug / random）换成后端返回的数字 id ——
-  // 提取时还没推后端，生成的是临时 key；推完不换回来，代码里就永远是随机串。
-  let renamed = 0
-  if (canPush && resolvedIds.size)
-    renamed = await rewriteKeysToBackendIds(descriptions, resolvedIds, documents)
-
-  // —— 第三步：刷新本地词条（只有真的推过后端才需要）——
-  // runLocaleSync 走的是 dev server 的 syncAndUpdateLocales.py，会按后端数据全量覆盖
-  // 语言文件；没配后端时既没数据源也没必要跑这个全局脚本，直接跳过。
+  // —— 第二步：刷新本地词条（只有真的推过后端才需要）——
+  // runLocaleSync 走的是 dev server 的 syncAndUpdateLocales.py：拉后端全量词条、
+  // 清理重复 key、补全其它语言、并把源码里的临时 key 换成后端数字 id。
+  // 没配后端时既没数据源也没必要跑这个全局脚本，直接跳过。
   if (canPush && descs.length)
     await runLocaleSync()
 
-  // 第四步：把其它语言里缺失/空值的词条翻译掉（复用「翻译全部」命令）
+  // 第三步：把其它语言里缺失/空值的词条翻译掉（复用「翻译全部」命令）
   // 没后端时这是唯一有意义的动作，所以不受 translateAfterSync 开关约束
   if (descs.length && (canPush ? cfg.translateAfterSync : true)) {
     try {
@@ -332,128 +324,14 @@ export async function syncKeysToBackend(
 
   Log.info(`[sync] 完成：新增 ${result.created}，已存在 ${result.existed}，新关联 ${result.linked}，已关联 ${result.alreadyLinked}，失败 ${result.failed}`)
   window.showInformationMessage(
-    `i18n: 后端同步完成（新增 ${result.created} / 已存在 ${result.existed} / 新关联 ${result.linked} / 已关联 ${result.alreadyLinked} / 失败 ${result.failed}${renamed ? ` / key 已替换 ${renamed}` : ''}）`,
+    `i18n: 后端同步完成（新增 ${result.created} / 已存在 ${result.existed} / 新关联 ${result.linked} / 已关联 ${result.alreadyLinked} / 失败 ${result.failed}）`,
   )
   return result
 }
 
-/**
- * 把源码里的临时 key 换成后端返回的数字 id。
- *
- * 提取阶段拿不到后端 id，只能先生成 slug / random key；推完不换回来，代码里就永远是
- * 随机串，和后端的数字编码对不上，后续同步、翻译、清理全部错位。
- */
-async function rewriteKeysToBackendIds(
-  descriptions: Map<string, string[]>,
-  resolvedIds: Map<string, string>,
-  documents: (TextDocument | undefined)[],
-): Promise<number> {
-  const pairs: [string, string][] = []
-  for (const [desc, id] of resolvedIds) {
-    for (const key of descriptions.get(desc) ?? []) {
-      if (key !== id)
-        pairs.push([key, id])
-    }
-  }
-  if (!pairs.length)
-    return 0
-
-  Log.info(`[sync] ${pairs.length} 个临时 key 需要换成后端 id`)
-
-  const edit = new WorkspaceEdit()
-  const done = new Set<string>()
-  let replacements = 0
-
-  const addReplace = (doc: TextDocument, start: number, end: number, newKey: string) => {
-    const mark = `${doc.uri.fsPath}:${start}`
-    if (done.has(mark))
-      return
-    done.add(mark)
-    edit.replace(doc.uri, new Range(doc.positionAt(start), doc.positionAt(end)), newKey)
-    replacements++
-  }
-
-  // 1) 全项目扫描：能覆盖其它文件里对同一个 key 的引用
-  try {
-    // 强制重扫：刚提取完，缓存里的位置可能已经不准
-    const report = await Analyst.analyzeUsage(false)
-    const all = [...report.active, ...report.idle, ...report.missing]
-    const byKey = new Map(all.map(u => [u.keypath, u.occurrences as any[]]))
-    for (const [oldKey, newKey] of pairs) {
-      for (const occurrence of byKey.get(oldKey) ?? []) {
-        try {
-          const doc = await workspace.openTextDocument(Uri.file(occurrence.filepath))
-          addReplace(doc, occurrence.start, occurrence.end, newKey)
-        }
-        catch {
-          // 单个位置失败不影响其它
-        }
-      }
-    }
-  }
-  catch (e) {
-    Log.warn(`[sync] 扫描 key 引用失败，改用文档内文本匹配: ${(e as Error).message}`)
-  }
-
-  // 2) 兜底：直接在传入的文档里按文本找。
-  //    KeyDetector 对某些形态的 key（如 nanoid 生成的大写下划线串）可能不认，
-  //    只靠上面的扫描会出现「语言文件改了、源码没改」的半截状态。
-  for (const doc of documents) {
-    if (!doc)
-      continue
-    const text = doc.getText()
-    for (const [oldKey, newKey] of pairs) {
-      const pattern = new RegExp(`\\$t\\(\\s*['"]${escapeRegExp(oldKey)}['"]`, 'g')
-      for (const match of text.matchAll(pattern)) {
-        if (match.index == null)
-          continue
-        const start = match.index + match[0].indexOf(oldKey)
-        addReplace(doc, start, start + oldKey.length, newKey)
-      }
-    }
-  }
-
-  if (!replacements) {
-    Log.warn('[sync] 没找到可替换的源码位置，跳过 key 改名（避免代码与词条对不上）')
-    return 0
-  }
-
-  const ok = await workspace.applyEdit(edit)
-  if (!ok) {
-    Log.warn('[sync] 源码 key 替换失败（applyEdit 返回 false），跳过 key 改名')
-    return 0
-  }
-
-  Log.info(`[sync] 源码 key 已替换 ${replacements} 处`)
-
-  // 源码改成功后，语言文件里的词条才跟着改名；两边必须一起动，
-  // 否则代码里还是旧 key、词条已经换成新 key，界面会直接显示 key 本身。
-  const localeLoaders = CurrentFile.loader.loaders
-    .filter(l => l instanceof LocaleLoader) as LocaleLoader[]
-  for (const [oldKey, newKey] of pairs) {
-    for (const localeLoader of localeLoaders) {
-      try {
-        await localeLoader.renameKeyInLocales(oldKey, newKey)
-      }
-      catch (e) {
-        Log.warn(`[sync] 语言文件改名失败 ${oldKey} -> ${newKey}: ${(e as Error).message}`)
-      }
-    }
-  }
-
-  const renamed = pairs.length
-
-  KeyDetector.purgeAllCache()
-  CurrentFile.invalidate()
-  return renamed
-}
 
 export class AuthError extends Error {}
 
-/** 转义正则元字符，key 里可能有下划线/点等 */
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
 /** 后端统一响应包装：{ code: '0' 表示成功, msg, data } */
 interface Envelope<T> {
   code?: string | number
