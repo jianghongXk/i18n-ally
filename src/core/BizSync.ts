@@ -1,6 +1,6 @@
 import axios from 'axios'
-import { TextDocument, Uri, window, workspace } from 'vscode'
-import { Config, CurrentFile } from '~/core'
+import { TextDocument, Uri, WorkspaceEdit, window, workspace } from 'vscode'
+import { Analyst, Config, CurrentFile, KeyDetector, LocaleLoader } from '~/core'
 import { Log } from '~/utils'
 import { runLocaleSync } from './SyncScript'
 import { decryptField, encryptEcb, encryptField } from '~/utils/aesEcb'
@@ -237,6 +237,7 @@ export async function syncKeysToBackend(
   const base = cfg.baseUrl.replace(/\/+$/, '')
   const descs = [...descriptions.keys()]
   const result: SyncResult = { created: 0, existed: 0, linked: 0, alreadyLinked: 0, failed: 0 }
+  const resolvedIds = new Map<string, string>()
   const status = canPush
     ? window.setStatusBarMessage(`$(sync~spin) i18n: 同步 ${descs.length} 条到后端…`)
     : undefined
@@ -266,6 +267,8 @@ export async function syncKeysToBackend(
                 Log.warn(`[sync] 无法获取 ${desc} 的编码 id，跳过关联`)
                 return
               }
+
+              resolvedIds.set(desc, String(finalId))
 
               const newlyLinked = await addType(base, finalId, cfg.type, auth)
               if (newlyLinked)
@@ -297,13 +300,19 @@ export async function syncKeysToBackend(
 
   status?.dispose()
 
-  // —— 第二步：刷新本地词条（只有真的推过后端才需要）——
+  // —— 第二步：把源码里的临时 key（slug / random）换成后端返回的数字 id ——
+  // 提取时还没推后端，生成的是临时 key；推完不换回来，代码里就永远是随机串。
+  let renamed = 0
+  if (canPush && resolvedIds.size)
+    renamed = await rewriteKeysToBackendIds(descriptions, resolvedIds)
+
+  // —— 第三步：刷新本地词条（只有真的推过后端才需要）——
   // runLocaleSync 走的是 dev server 的 syncAndUpdateLocales.py，会按后端数据全量覆盖
   // 语言文件；没配后端时既没数据源也没必要跑这个全局脚本，直接跳过。
   if (canPush && descs.length)
     await runLocaleSync()
 
-  // 第三步：把其它语言里缺失/空值的词条翻译掉（复用「翻译全部」命令）
+  // 第四步：把其它语言里缺失/空值的词条翻译掉（复用「翻译全部」命令）
   // 没后端时这是唯一有意义的动作，所以不受 translateAfterSync 开关约束
   if (descs.length && (canPush ? cfg.translateAfterSync : true)) {
     try {
@@ -323,13 +332,92 @@ export async function syncKeysToBackend(
 
   Log.info(`[sync] 完成：新增 ${result.created}，已存在 ${result.existed}，新关联 ${result.linked}，已关联 ${result.alreadyLinked}，失败 ${result.failed}`)
   window.showInformationMessage(
-    `i18n: 后端同步完成（新增 ${result.created} / 已存在 ${result.existed} / 新关联 ${result.linked} / 已关联 ${result.alreadyLinked} / 失败 ${result.failed}）`,
+    `i18n: 后端同步完成（新增 ${result.created} / 已存在 ${result.existed} / 新关联 ${result.linked} / 已关联 ${result.alreadyLinked} / 失败 ${result.failed}${renamed ? ` / key 已替换 ${renamed}` : ''}）`,
   )
   return result
 }
 
-export class AuthError extends Error {}
+/**
+ * 把源码里的临时 key 换成后端返回的数字 id。
+ *
+ * 提取阶段拿不到后端 id，只能先生成 slug / random key；推完不换回来，代码里就永远是
+ * 随机串，和后端的数字编码对不上，后续同步、翻译、清理全部错位。
+ */
+async function rewriteKeysToBackendIds(
+  descriptions: Map<string, string[]>,
+  resolvedIds: Map<string, string>,
+): Promise<number> {
+  const pairs: [string, string][] = []
+  for (const [desc, id] of resolvedIds) {
+    for (const key of descriptions.get(desc) ?? []) {
+      if (key !== id)
+        pairs.push([key, id])
+    }
+  }
+  if (!pairs.length)
+    return 0
 
+  Log.info(`[sync] ${pairs.length} 个临时 key 需要换成后端 id`)
+
+  let byKey: Map<string, any[]>
+  try {
+    // 强制重扫：刚提取完，缓存里的位置可能已经不准
+    const report = await Analyst.analyzeUsage(false)
+    const all = [...report.active, ...report.idle, ...report.missing]
+    byKey = new Map(all.map(u => [u.keypath, u.occurrences as any[]]))
+  }
+  catch (e) {
+    Log.warn(`[sync] 扫描 key 引用失败，跳过 key 替换: ${(e as Error).message}`)
+    return 0
+  }
+
+  const edit = new WorkspaceEdit()
+  let replacements = 0
+  for (const [oldKey, newKey] of pairs) {
+    for (const occurrence of byKey.get(oldKey) ?? []) {
+      try {
+        const location = await Analyst.getLocationOf(occurrence)
+        edit.replace(location.uri, location.range, newKey)
+        replacements++
+      }
+      catch {
+        // 单个位置失败不影响其它
+      }
+    }
+  }
+
+  let renamed = 0
+  if (replacements) {
+    const ok = await workspace.applyEdit(edit)
+    if (ok) {
+      renamed = pairs.length
+      Log.info(`[sync] 源码 key 已替换 ${replacements} 处`)
+    }
+    else {
+      Log.warn('[sync] 源码 key 替换失败（applyEdit 返回 false）')
+    }
+  }
+
+  // 语言文件里的词条跟着改名；放在改源码之后，避免 watcher 读到半截状态
+  const localeLoaders = CurrentFile.loader.loaders
+    .filter(l => l instanceof LocaleLoader) as LocaleLoader[]
+  for (const [oldKey, newKey] of pairs) {
+    for (const localeLoader of localeLoaders) {
+      try {
+        await localeLoader.renameKeyInLocales(oldKey, newKey)
+      }
+      catch (e) {
+        Log.warn(`[sync] 语言文件改名失败 ${oldKey} -> ${newKey}: ${(e as Error).message}`)
+      }
+    }
+  }
+
+  KeyDetector.purgeAllCache()
+  CurrentFile.invalidate()
+  return renamed
+}
+
+export class AuthError extends Error {}
 /** 后端统一响应包装：{ code: '0' 表示成功, msg, data } */
 interface Envelope<T> {
   code?: string | number

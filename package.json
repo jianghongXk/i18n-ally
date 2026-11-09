@@ -1,7 +1,7 @@
 {
   "publisher": "lokalise",
   "name": "i18n-ally",
-  "version": "2.16.7-dev.54",
+  "version": "2.16.7-dev.55",
   "displayName": "i18n Ally Support Regex",
   "description": "🌍 All in one i18n extension for VS Code with regex support",
   "keywords": [
