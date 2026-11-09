@@ -180,6 +180,8 @@ export interface ExtractInfo {
   locale?: string
   /** raw trailing unit suffix (incl. parens, e.g. `(元/MWh)`) split from `message` */
   unit?: string
+  /** leading bracket split from `message` when the whole text was wrapped, e.g. `（` in `（仅当前页面）` */
+  prefix?: string
 }
 
 export interface CustomRefactorTemplate {

@@ -85,9 +85,12 @@ export async function BatchHardStringExtraction(...args: any[]) {
         // split trailing unit suffix like "(kW)" out of the text,
         // so the key/value only contains the translatable part,
         // and the replacement becomes `$t('key') + '(kW)'`
-        const { text: mainText, suffix } = args?.length
-          ? { text, suffix: '' }
+        // 整条被括号包住的（`（仅当前页面）`）会额外拆出左括号，
+        // 替换成 `'（' + $t('key') + '）'`
+        const split = args?.length
+          ? { text, prefix: '', suffix: '' }
           : splitUnitOrStandalone(text)
+        const { text: mainText, prefix, suffix } = split
 
         const keypath = generateKeyFromText(suffix ? mainText : (rawText || text), filepath, true, usedKeys)
         const templates = Global.interpretRefactorTemplates(keypath, args, document, i).filter(Boolean)
@@ -105,6 +108,7 @@ export async function BatchHardStringExtraction(...args: any[]) {
           keypath,
           message: mainText,
           unit: suffix || undefined,
+          prefix: prefix || undefined,
           locale: Config.displayLanguage,
         }
       })

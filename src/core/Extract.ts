@@ -127,6 +127,7 @@ export async function extractHardStrings(document: TextDocument, extracts: Extra
 
     let main = extract.message
     let unit = extract.unit
+    let prefix = extract.prefix || ''
 
     // defensive path for callers that didn't split the unit themselves
     if (!unit) {
@@ -134,10 +135,22 @@ export async function extractHardStrings(document: TextDocument, extracts: Extra
       if (split.suffix) {
         unit = split.suffix
         main = split.text
+        prefix = split.prefix || prefix
       }
     }
 
     extract.message = main
+
+    // 整条被括号包住时（`（仅当前页面）`），把左括号放回表达式前面：
+    //   $t('key')        -> '（' + $t('key')
+    //   {{ $t('key') }}  -> {{ '（' + $t('key') }}
+    if (prefix) {
+      const literal = `'${prefix.replace(/\\/g, '\\\\').replace(/'/g, '\\\'')}'`
+      const html = extract.replaceTo.match(/^(\{\{\s*)([\s\S]*?)(\s*\}\})$/)
+      extract.replaceTo = html
+        ? `${html[1]}${literal} + ${html[2]}${html[3]}`
+        : `${literal} + ${extract.replaceTo}`
+    }
 
     if (unit) {
       const exprParts: string[] = []

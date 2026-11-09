@@ -7,6 +7,10 @@ const regexTailing = /[\s\n]+$/mg
 // content may contain CJK as well; it gets split into translatable runs later
 const UNIT_SUFFIX_REGEX = /(?:\s*[（(][^（()）]*[）)])+$/
 
+// fully wrapped text like `（仅当前页面）` / `(仅当前页面)`: the brackets are
+// punctuation, only the inner text is translatable
+const FULLY_WRAPPED_REGEX = /^([（(])([^（()）]+)([）)])$/
+
 // CJK ranges that should become their own $t() keys inside a unit suffix
 export const CJK_CHAR_REGEX = /[\u3400-\u4dbf\u4e00-\u9fff]/
 
@@ -18,16 +22,25 @@ export const CJK_CHAR_REGEX = /[\u3400-\u4dbf\u4e00-\u9fff]/
  * Only splits when the remaining text still contains non-ascii characters
  * (i.e. the translatable part), so pure-ascii texts are kept intact.
  */
-export function splitUnitSuffix(text: string): { text: string; suffix: string } {
+export function splitUnitSuffix(text: string): { text: string; prefix: string; suffix: string } {
+  // 整条被括号包住：`（仅当前页面）` -> 词条只留括号内的中文，两个括号由代码还原成
+  // `'（' + $t('key') + '）'`。括号内必须是真文案（含非 ASCII），`(kW)` 这类不动。
+  const wrapped = text.trim().match(FULLY_WRAPPED_REGEX)
+  if (wrapped) {
+    const inner = wrapped[2].trim()
+    if (inner && /[^\x00-\x7F]/.test(inner))
+      return { text: inner, prefix: wrapped[1], suffix: wrapped[3] }
+  }
+
   const match = text.match(UNIT_SUFFIX_REGEX)
   if (!match?.index)
-    return { text, suffix: '' }
+    return { text, prefix: '', suffix: '' }
 
   const main = text.slice(0, match.index).trimEnd()
   if (!main || !/[^\x00-\x7F]/.test(main))
-    return { text, suffix: '' }
+    return { text, prefix: '', suffix: '' }
 
-  return { text: main, suffix: match[0].trim() }
+  return { text: main, prefix: '', suffix: match[0].trim() }
 }
 
 export interface UnitExprPart {
@@ -48,22 +61,23 @@ const STANDALONE_UNIT_SUFFIX_REGEX = /^([\u3400-\u4dbf\u4e00-\u9fff]+)([^\u3400-
  * kept intact. Also requires the CJK part to be the whole prefix and the tail
  * to have no CJK, so mixed labels such as `第3机组` are never split.
  */
-export function splitStandaloneUnitSuffix(text: string): { text: string; suffix: string } {
+export function splitStandaloneUnitSuffix(text: string): { text: string; prefix: string; suffix: string } {
   if (!text.includes('/'))
-    return { text, suffix: '' }
+    return { text, prefix: '', suffix: '' }
 
   const match = text.trim().match(STANDALONE_UNIT_SUFFIX_REGEX)
   if (!match)
-    return { text, suffix: '' }
+    return { text, prefix: '', suffix: '' }
 
-  return { text: match[1], suffix: match[2] }
+  return { text: match[1], prefix: '', suffix: match[2] }
 }
 
 /**
  * Split a unit out of the text, supporting both the parenthesized form
- * (`中标价格(元/MWh)`) and the standalone form (`元/MWh`).
+ * (`中标价格(元/MWh)`), the fully wrapped form (`（仅当前页面）`) and the
+ * standalone form (`元/MWh`).
  */
-export function splitUnitOrStandalone(text: string): { text: string; suffix: string } {
+export function splitUnitOrStandalone(text: string): { text: string; prefix: string; suffix: string } {
   const paren = splitUnitSuffix(text)
   if (paren.suffix)
     return paren
