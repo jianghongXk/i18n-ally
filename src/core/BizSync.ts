@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { TextDocument, Uri, WorkspaceEdit, window, workspace } from 'vscode'
+import { Range, TextDocument, Uri, WorkspaceEdit, window, workspace } from 'vscode'
 import { Analyst, Config, CurrentFile, KeyDetector, LocaleLoader } from '~/core'
 import { Log } from '~/utils'
 import { runLocaleSync } from './SyncScript'
@@ -304,7 +304,7 @@ export async function syncKeysToBackend(
   // 提取时还没推后端，生成的是临时 key；推完不换回来，代码里就永远是随机串。
   let renamed = 0
   if (canPush && resolvedIds.size)
-    renamed = await rewriteKeysToBackendIds(descriptions, resolvedIds)
+    renamed = await rewriteKeysToBackendIds(descriptions, resolvedIds, documents)
 
   // —— 第三步：刷新本地词条（只有真的推过后端才需要）——
   // runLocaleSync 走的是 dev server 的 syncAndUpdateLocales.py，会按后端数据全量覆盖
@@ -346,6 +346,7 @@ export async function syncKeysToBackend(
 async function rewriteKeysToBackendIds(
   descriptions: Map<string, string[]>,
   resolvedIds: Map<string, string>,
+  documents: (TextDocument | undefined)[],
 ): Promise<number> {
   const pairs: [string, string][] = []
   for (const [desc, id] of resolvedIds) {
@@ -359,46 +360,74 @@ async function rewriteKeysToBackendIds(
 
   Log.info(`[sync] ${pairs.length} 个临时 key 需要换成后端 id`)
 
-  let byKey: Map<string, any[]>
+  const edit = new WorkspaceEdit()
+  const done = new Set<string>()
+  let replacements = 0
+
+  const addReplace = (doc: TextDocument, start: number, end: number, newKey: string) => {
+    const mark = `${doc.uri.fsPath}:${start}`
+    if (done.has(mark))
+      return
+    done.add(mark)
+    edit.replace(doc.uri, new Range(doc.positionAt(start), doc.positionAt(end)), newKey)
+    replacements++
+  }
+
+  // 1) 全项目扫描：能覆盖其它文件里对同一个 key 的引用
   try {
     // 强制重扫：刚提取完，缓存里的位置可能已经不准
     const report = await Analyst.analyzeUsage(false)
     const all = [...report.active, ...report.idle, ...report.missing]
-    byKey = new Map(all.map(u => [u.keypath, u.occurrences as any[]]))
+    const byKey = new Map(all.map(u => [u.keypath, u.occurrences as any[]]))
+    for (const [oldKey, newKey] of pairs) {
+      for (const occurrence of byKey.get(oldKey) ?? []) {
+        try {
+          const doc = await workspace.openTextDocument(Uri.file(occurrence.filepath))
+          addReplace(doc, occurrence.start, occurrence.end, newKey)
+        }
+        catch {
+          // 单个位置失败不影响其它
+        }
+      }
+    }
   }
   catch (e) {
-    Log.warn(`[sync] 扫描 key 引用失败，跳过 key 替换: ${(e as Error).message}`)
+    Log.warn(`[sync] 扫描 key 引用失败，改用文档内文本匹配: ${(e as Error).message}`)
+  }
+
+  // 2) 兜底：直接在传入的文档里按文本找。
+  //    KeyDetector 对某些形态的 key（如 nanoid 生成的大写下划线串）可能不认，
+  //    只靠上面的扫描会出现「语言文件改了、源码没改」的半截状态。
+  for (const doc of documents) {
+    if (!doc)
+      continue
+    const text = doc.getText()
+    for (const [oldKey, newKey] of pairs) {
+      const pattern = new RegExp(`\\$t\\(\\s*['"]${escapeRegExp(oldKey)}['"]`, 'g')
+      for (const match of text.matchAll(pattern)) {
+        if (match.index == null)
+          continue
+        const start = match.index + match[0].indexOf(oldKey)
+        addReplace(doc, start, start + oldKey.length, newKey)
+      }
+    }
+  }
+
+  if (!replacements) {
+    Log.warn('[sync] 没找到可替换的源码位置，跳过 key 改名（避免代码与词条对不上）')
     return 0
   }
 
-  const edit = new WorkspaceEdit()
-  let replacements = 0
-  for (const [oldKey, newKey] of pairs) {
-    for (const occurrence of byKey.get(oldKey) ?? []) {
-      try {
-        const location = await Analyst.getLocationOf(occurrence)
-        edit.replace(location.uri, location.range, newKey)
-        replacements++
-      }
-      catch {
-        // 单个位置失败不影响其它
-      }
-    }
+  const ok = await workspace.applyEdit(edit)
+  if (!ok) {
+    Log.warn('[sync] 源码 key 替换失败（applyEdit 返回 false），跳过 key 改名')
+    return 0
   }
 
-  let renamed = 0
-  if (replacements) {
-    const ok = await workspace.applyEdit(edit)
-    if (ok) {
-      renamed = pairs.length
-      Log.info(`[sync] 源码 key 已替换 ${replacements} 处`)
-    }
-    else {
-      Log.warn('[sync] 源码 key 替换失败（applyEdit 返回 false）')
-    }
-  }
+  Log.info(`[sync] 源码 key 已替换 ${replacements} 处`)
 
-  // 语言文件里的词条跟着改名；放在改源码之后，避免 watcher 读到半截状态
+  // 源码改成功后，语言文件里的词条才跟着改名；两边必须一起动，
+  // 否则代码里还是旧 key、词条已经换成新 key，界面会直接显示 key 本身。
   const localeLoaders = CurrentFile.loader.loaders
     .filter(l => l instanceof LocaleLoader) as LocaleLoader[]
   for (const [oldKey, newKey] of pairs) {
@@ -412,12 +441,19 @@ async function rewriteKeysToBackendIds(
     }
   }
 
+  const renamed = pairs.length
+
   KeyDetector.purgeAllCache()
   CurrentFile.invalidate()
   return renamed
 }
 
 export class AuthError extends Error {}
+
+/** 转义正则元字符，key 里可能有下划线/点等 */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 /** 后端统一响应包装：{ code: '0' 表示成功, msg, data } */
 interface Envelope<T> {
   code?: string | number
