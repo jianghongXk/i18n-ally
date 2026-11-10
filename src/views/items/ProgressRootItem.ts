@@ -1,4 +1,3 @@
-import { unicodeProgressBar, unicodeDecorate } from '~/utils'
 import { ProgressMissingListItem } from './ProgressMissingListItem'
 import { ProgressEmptyListItem } from './ProgressEmptyListItem'
 import { ProgressBaseItem } from './ProgressBaseItem'
@@ -8,6 +7,7 @@ import { BaseTreeItem } from './Base'
 import { ReviewTranslationCandidates } from './ReviewTranslationCandidates'
 import { ReviewSuggestions } from './ReviewSuggestions'
 import { Seperator } from './Seperator'
+import { unicodeProgressBar, unicodeDecorate } from '~/utils'
 import { Config, Global } from '~/core'
 
 export class ProgressRootItem extends ProgressBaseItem {
@@ -34,11 +34,12 @@ export class ProgressRootItem extends ProgressBaseItem {
   }
 
   get isSource() {
-    return Config.isSameLocale(this.locale, Config.sourceLanguage)
+    // 与项目里真实的中文文件（chs.json）比较，配置里的 zh-cn 不能直接比
+    return Config.isSameLocale(this.locale, Config.alignToProject(Global.loader?.locales))
   }
 
   get isDisplay() {
-    return Config.isSameLocale(this.locale, Config.displayLanguage)
+    return Config.isSameLocale(this.locale, Config.alignLocale(Config.displayLanguage, Global.loader?.locales))
   }
 
   // @ts-expect-error

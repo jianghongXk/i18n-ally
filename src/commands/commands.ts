@@ -52,4 +52,8 @@ export const enum Commands {
   set_backend_auth = 'i18n-ally.set-backend-auth',
   sync_keys_to_backend = 'i18n-ally.sync-keys-to-backend',
   setup_wizard = 'i18n-ally.setup-wizard',
+  config_translate_locales = 'i18n-ally.config-translate-locales',
+  open_workspace_settings = 'i18n-ally.open-workspace-settings',
+  select_locale_files = 'i18n-ally.select-locale-files',
+  create_locale_file = 'i18n-ally.create-locale-file',
 }

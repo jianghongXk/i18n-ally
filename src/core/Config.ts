@@ -9,11 +9,16 @@ import i18n from '~/i18n'
 import { CaseStyles } from '~/utils/changeCase'
 import { ExtractionBabelOptions, ExtractionHTMLOptions } from '~/extraction/parsers/options'
 import { resolveRefactorTemplate } from '~/utils/resolveRefactorTemplate'
+import { resolveProjectLocale } from '~/utils/projectLocale'
+// 只引纯数据模块，不经过 ~/translators/index.ts，避免与引擎形成循环依赖
+import type { EngineLocale } from '~/translators/locales'
+import { getEngineLocales, isEngineLocaleSupported, normalizeEngineLocale, resolveEngineLocale } from '~/translators/locales'
 
 export class Config {
   static readonly reloadConfigs = [
     'disabled',
     'localesPaths',
+    'localeFiles',
     'pathMatcher',
     'includeSubfolders',
     'enabledFrameworks',
@@ -75,6 +80,24 @@ export class Config {
     this.setConfig('sourceLanguage', this.normalizeLocale(value))
   }
 
+  /**
+   * 把配置的源语言对齐到项目里真实存在的语言文件。
+   * 设置里通常是全局的 `zh-cn`，而各项目的简体中文文件可能叫 `chs.json`，
+   * 直接用配置值去 node.locales 取原文会一条都取不到。
+   * 调用方把 loader.locales 传进来（为空则原样返回，不做猜测）。
+   */
+  static alignToProject(locales?: string[] | null): string {
+    return this.alignLocale(this.sourceLanguage, locales, [this.displayLanguage])
+  }
+
+  /** 把任意语言标识对齐到项目里真实存在的语言文件；locales 为空时原样返回 */
+  static alignLocale(locale: string, locales?: string[] | null, prefer: string[] = []): string {
+    const list = locales || []
+    if (!list.length || !locale)
+      return locale
+    return resolveProjectLocale(locale, list, prefer).locale
+  }
+
   static get tagSystem() {
     const tag = this.getConfig('languageTagSystem') || 'bcp47'
     return TagSystems[tag]
@@ -134,6 +157,30 @@ export class Config {
 
   static set ignoredLocales(value) {
     this.setConfig('ignoredLocales', value, true)
+  }
+
+  /**
+   * 显式的语言文件白名单（相对工作区根目录）。留空时按 pathMatcher 自动识别。
+   * {locale} 会被编译成宽松的 [\w-_]+，把 commWord.json 这类同目录数据文件也吃进来，
+   * 白名单让使用者逐个勾选「哪些才是语言文件」，loader 只加载列出的文件。
+   */
+  static get localeFiles(): string[] {
+    const value = this.getConfig<string[] | string>('localeFiles')
+    const list = typeof value === 'string'
+      ? [value]
+      : Array.isArray(value) ? value : []
+    return list
+      .map(i => String(i).trim().replace(/\\/g, '/').replace(/^\.\//, ''))
+      .filter(Boolean)
+  }
+
+  /** 白名单未配置时一律放行，配置后按「相对工作区根的路径」精确匹配（大小写不敏感） */
+  static isExplicitLocaleFile(rootpath: string, filepath: string): boolean {
+    const allowed = this.localeFiles.map(i => i.toLowerCase())
+    if (!allowed.length)
+      return true
+    const relative = path.relative(rootpath, filepath).replace(/\\/g, '/').toLowerCase()
+    return allowed.includes(relative)
   }
 
   static get _keyStyle(): KeyStyle {
@@ -213,7 +260,7 @@ export class Config {
     return this.getConfig<SortCompare>('sortCompare') || 'binary'
   }
 
-  static get sortLocale(): string | undefined{
+  static get sortLocale(): string | undefined {
     return this.getConfig<string>('sortLocale')
   }
 
@@ -263,6 +310,17 @@ export class Config {
 
   static get translateSaveAsCandidates(): boolean {
     return this.getConfig<boolean>('translate.saveAsCandidates') || false
+  }
+
+  /** 源语言该 key 没文案时，允许拿其它语言文件里已有的文案当翻译原文 */
+  static get translateFallbackFromOtherLocales(): boolean {
+    return this.getConfig<boolean>('translate.fallbackFromOtherLocales') ?? true
+  }
+
+  /** 交叉引用的原文语言优先级；留空按项目语言列表顺序 */
+  static get translateFallbackSourceOrder(): string[] {
+    const order = this.getConfig<string[]>('translate.fallbackSourceOrder')
+    return Array.isArray(order) ? order.filter(i => typeof i === 'string' && i.trim()) : []
   }
 
   /** 提取完成后自动把新词条翻译到其它语言（复用 translate.engines 的引擎配置） */
@@ -389,6 +447,81 @@ export class Config {
     return this.getConfig<string[]>('translate.engines') || ['google']
   }
 
+  // #region 翻译语言映射：项目语言文件 ↔ 引擎 API 语言码
+
+  /**
+   * 显式绑定的原始配置。支持两种写法，可混用：
+   *   { "chs": "zh", "can": "cht" }                    // 对所有引擎生效
+   *   { "baidu": { "chs": "zh" }, "google": { ... } }  // 只对指定引擎生效（优先级更高）
+   */
+  static get translateLocaleMapRaw(): Record<string, any> {
+    return this.getConfig<Record<string, any>>('translate.localeMap') || {}
+  }
+
+  /** 取出对某个引擎生效的映射，key 统一成小写、下划线转连字符 */
+  static getTranslateLocaleMap(engine: string): Record<string, string> {
+    const raw = this.translateLocaleMapRaw
+    const result: Record<string, string> = {}
+    for (const [key, value] of Object.entries(raw)) {
+      if (typeof value === 'string')
+        result[normalizeEngineLocale(key)] = value
+    }
+    const scoped = raw[engine]
+    if (scoped && typeof scoped === 'object' && !Array.isArray(scoped)) {
+      for (const [key, value] of Object.entries(scoped)) {
+        if (typeof value === 'string')
+          result[normalizeEngineLocale(key)] = value
+      }
+    }
+    return result
+  }
+
+  /**
+   * 把项目里的 locale（通常就是语言文件名）解析成翻译 API 的语言码。
+   * 优先级：显式配置 > 引擎声明的别名表。解析不了返回 undefined。
+   */
+  static resolveTranslateLocale(engine: string, locale?: string): string | undefined {
+    if (!locale)
+      return undefined
+    const explicit = this.getTranslateLocaleMap(engine)[normalizeEngineLocale(locale)]
+    if (explicit)
+      return explicit
+    return resolveEngineLocale(engine, locale)
+  }
+
+  /** 该引擎声明的可用语言清单（供配置界面展示） */
+  static getTranslateEngineLocales(engine: string): EngineLocale[] {
+    return getEngineLocales(engine)
+  }
+
+  /**
+   * 翻译前校验：引擎没声明清单时不拦截（保持旧行为）；
+   * 显式绑定过的语言一律放行（允许使用清单外的新语种）。
+   */
+  static isTranslateLocaleSupported(engine: string, locale: string, asSource = false): boolean {
+    if (!getEngineLocales(engine).length)
+      return true
+    if (this.getTranslateLocaleMap(engine)[normalizeEngineLocale(locale)])
+      return true
+    const resolved = this.resolveTranslateLocale(engine, locale)
+    return !!resolved && isEngineLocaleSupported(engine, resolved, asSource)
+  }
+
+  /** 配置界面用：某个项目语言的绑定状态 */
+  static getTranslateLocaleStatus(engine: string, locale: string) {
+    const explicit = this.getTranslateLocaleMap(engine)[normalizeEngineLocale(locale)]
+    const resolved = this.resolveTranslateLocale(engine, locale)
+    return {
+      explicit,
+      resolved,
+      supported: this.isTranslateLocaleSupported(engine, locale),
+      // 'explicit' | 'alias' | 'unresolved'
+      source: explicit ? 'explicit' : resolved ? 'alias' : 'unresolved',
+    }
+  }
+
+  // #endregion
+
   static get refactorTemplates() {
     return resolveRefactorTemplate(this.getConfig<string[]>('refactor.templates') || [])
   }
@@ -492,7 +625,6 @@ export class Config {
   static get keyPrefix() {
     return this.getConfig<string>('extract.keyPrefix') ?? ''
   }
-
 
   static get extractKeyMaxLength() {
     return this.getConfig<number>('extract.keyMaxLength') ?? Infinity

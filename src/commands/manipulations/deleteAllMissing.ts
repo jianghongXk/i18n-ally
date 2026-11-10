@@ -6,9 +6,14 @@ export async function DeleteAllMissing(item?: ProgressMissingListItem) {
   try {
     const loader = CurrentFile.loader
     const targetLocale = item?.node?.locale
+    // 源语言要对齐到项目真实文件（chs.json），否则会把源语言也当目标语言清掉
+    const source = Config.alignToProject(Global.allLocales)
     const locales = targetLocale
       ? [targetLocale]
-      : Global.allLocales.filter(locale => locale !== Config.sourceLanguage && !Config.ignoredLocales.includes(locale))
+      : Global.allLocales.filter(locale =>
+        !Config.isSameLocale(locale, source)
+        && !Config.ignoredLocales.some(ignored => Config.isSameLocale(ignored, locale)),
+      )
 
     if (!locales.length) {
       window.showInformationMessage('没有可删除的目标语言')
@@ -30,9 +35,8 @@ export async function DeleteAllMissing(item?: ProgressMissingListItem) {
 
         const sourceNode = loader.getNodeByKey(key)
         if (sourceNode) {
-          for (const localeRecord of Object.values(sourceNode.locales)) {
+          for (const localeRecord of Object.values(sourceNode.locales))
             records.push(localeRecord)
-          }
         }
       }
     }

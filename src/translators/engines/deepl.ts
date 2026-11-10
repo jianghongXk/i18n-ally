@@ -1,6 +1,8 @@
 import axios from 'axios'
 import qs from 'qs'
 
+import type { EngineLocale } from '../locales'
+import { findLocaleIn, normalizeEngineLocale } from '../locales'
 import TranslateEngine, { TranslateOptions, TranslateResult } from './base'
 import { Log } from '~/utils'
 import { Config } from '~/core'
@@ -75,6 +77,42 @@ function stripeLocaleCode(locale?: string): string | undefined {
 }
 
 class DeepL extends TranslateEngine {
+  get id() {
+    return 'deepl'
+  }
+
+  /** DeepL 官方 /v2/languages：需要密钥，返回服务当前真正支持的目标语言 */
+  async fetchSupportedLocales(): Promise<EngineLocale[] | undefined> {
+    if (!Config.deeplApiKey)
+      return undefined
+
+    // 拦截器会覆盖 req.params（塞 auth_key），所以 type 直接拼在 url 上
+    const { data } = await deepl.get('/languages?type=target', { timeout: 6000 })
+    const list: { language: string; name: string }[] = Array.isArray(data) ? data : []
+    if (!list.length)
+      return undefined
+
+    return list.map(l => ({
+      code: l.language,
+      name: l.name,
+      aliases: [l.language],
+      note: l.language.includes('-') ? '带变体的语言码，绑定后不会被截成主码' : undefined,
+    }))
+  }
+
+  /**
+   * 已经是引擎清单里的 API 码（EN-US / ZH-HANT 等）就原样传，
+   * 否则按老规则截主码：项目里的 zh-CN / can 等由 Config 先解析过。
+   */
+  private normalizeApiLocale(locale?: string): string | undefined {
+    if (!locale)
+      return locale
+    const found = findLocaleIn(this.supportedLocales, locale)
+    if (found && normalizeEngineLocale(found.code) === normalizeEngineLocale(locale))
+      return locale
+    return stripeLocaleCode(locale)
+  }
+
   async translate(options: TranslateOptions) {
     try {
       const res: DeepLTranslateRes = await deepl({
@@ -82,8 +120,8 @@ class DeepL extends TranslateEngine {
         url: '/translate',
         data: {
           text: options.text,
-          source_lang: stripeLocaleCode(options.from || undefined),
-          target_lang: stripeLocaleCode(options.to),
+          source_lang: this.normalizeApiLocale(options.from || undefined),
+          target_lang: this.normalizeApiLocale(options.to),
         },
       }).then(({ data }) => data)
 

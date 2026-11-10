@@ -3,7 +3,8 @@ import { Node, Config, Global } from '~/core'
 export class NodeHelper {
   static isSource(node: Node) {
     if (node.type === 'record')
-      return Config.isSameLocale(node.locale, Config.sourceLanguage)
+      // 用项目里真实的源语言文件（chs.json）判断，而不是设置里的 zh-cn
+      return Config.isSameLocale(node.locale, Config.alignToProject(Global.loader?.locales))
     return false
   }
 

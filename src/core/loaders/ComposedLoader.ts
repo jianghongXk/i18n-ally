@@ -129,7 +129,7 @@ export class ComposedLoader extends Loader {
     return changed
   }
 
-  async write(pendings: PendingWrite | PendingWrite[], triggerFullfilled = true) {
+  async write(pendings: PendingWrite | PendingWrite[], triggerFullfilled = true): Promise<number> {
     if (!Array.isArray(pendings))
       pendings = [pendings]
 
@@ -158,10 +158,12 @@ export class ComposedLoader extends Loader {
         Log.info(`💥 Unhandled write ${JSON.stringify(pending)}`)
     }
 
+    let written = 0
     await Promise.all(loaders.map(async(loader, index) => {
       if (distrubtedPendings[index] && distrubtedPendings[index].length)
-        await loader.write(distrubtedPendings[index])
+        written += await loader.write(distrubtedPendings[index]) || 0
     }))
+    return written
   }
 
   // TODO: sfc merge tree nodes

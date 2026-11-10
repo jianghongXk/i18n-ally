@@ -62,20 +62,23 @@ export class Reviews {
   async setTranslationCandidates(items: {key: string; locale: string; translation?: TranslationCandidate}[]) {
     for (const { key, translation, locale } of items)
       await this.set(key, 'translation_candidate', translation, locale, false)
-    this.save()
+    // 以前漏了 await：候选还没落盘，翻译流程就已经报「完成」
+    await this.save()
   }
 
   getTranslationCandidate(key: string, locale: string): TranslationCandidate | undefined {
     return this.get(key, 'translation_candidate', locale)
   }
 
-  async applyTranslationCandidates(candidates: {keypath: string; locale: string}[]) {
+  /** 把候选项正式写进语言文件并清掉候选，返回真正写入的条数 */
+  async applyTranslationCandidates(candidates: {keypath: string; locale: string}[]): Promise<number> {
     const pendings: PendingWrite[] = []
 
     for (const { keypath, locale } of candidates) {
       const translation = this.getTranslationCandidate(keypath, locale)
+      // 原来用 break：只要有一条没有候选，后面全部被跳过，却照样清掉了它们的标记
       if (!translation)
-        break
+        continue
 
       pendings.push({
         keypath,
@@ -83,12 +86,14 @@ export class Reviews {
         value: translation.text,
       })
     }
-    CurrentFile.loader.write(pendings)
+    // 原来没 await：写盘还没结束就返回，调用方以为已经写入
+    const written = pendings.length ? await CurrentFile.loader.write(pendings) : 0
 
     for (const { keypath, locale } of candidates)
       await this.discardTranslationCandidate(keypath, locale, false)
 
     await this.save()
+    return written
   }
 
   async applyTranslationCandidate(key: string, locale: string, override?: string) {

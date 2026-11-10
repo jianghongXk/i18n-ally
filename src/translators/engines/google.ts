@@ -1,11 +1,37 @@
 import axios from 'axios'
+import type { EngineLocale } from '../locales'
 import TranslateEngine, { TranslateOptions, TranslateResult } from './base'
 import { Config } from '~/core'
 
 export default class GoogleTranslate extends TranslateEngine {
+  get id() {
+    return 'google'
+  }
+
   link = 'https://translate.google.com'
   apiRoot = 'https://translate.googleapis.com'
   apiRootIfUserSuppliedKey = 'https://translation.googleapis.com'
+
+  /**
+   * 免费接口没有语种列表端点；配置了 Cloud API key 时从官方 /languages 读取真实清单。
+   * 没有 key 时返回 undefined，配置界面退回 GOOGLE_LOCALES 内置声明。
+   */
+  async fetchSupportedLocales(): Promise<EngineLocale[] | undefined> {
+    const key = Config.googleApiKey
+    if (!key)
+      return undefined
+
+    const { data } = await axios.get(`${this.apiRootIfUserSuppliedKey}/language/translate/v2/languages`, {
+      params: { key, target: 'en' },
+      timeout: 6000,
+    })
+    const languages: { language: string; name: string }[] = data?.data?.languages || []
+    if (!languages.length)
+      return undefined
+
+    return languages.map(l => ({ code: l.language, name: l.name, aliases: [l.language] }))
+      .filter(l => l.code !== 'auto')
+  }
 
   async translate(options: TranslateOptions) {
     let {

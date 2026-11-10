@@ -37,7 +37,7 @@ export abstract class ProgressSubmenuItem extends ProgressBaseItem {
 
   set collapsibleState(_) { }
   async getChildren() {
-    const locales = Array.from(new Set([this.node.locale, Config.sourceLanguage]))
+    const locales = Array.from(new Set([this.node.locale, Config.alignToProject(CurrentFile.loader?.locales)]))
     return this.getKeys()
       .map(key => CurrentFile.loader.getTreeNodeByKey(key))
       .map(node => node && new LocaleTreeItem(this.ctx, node, true, this.node.locale, locales))

@@ -4,6 +4,7 @@ import { trim } from 'lodash'
 import { overrideConfirm } from './overrideConfirm'
 import { Commands } from './commands'
 import { keypathValidate, Log, promptTemplates } from '~/utils'
+import { resolveProjectLocale } from '~/utils/projectLocale'
 import { ExtensionModule } from '~/modules'
 import { extractHardStrings, generateKeyFromText, Config, CurrentFile, DetectionResult, Telemetry, TelemetryKey } from '~/core'
 import i18n from '~/i18n'
@@ -50,8 +51,9 @@ async function ExtractOrInsertCommnad(options?: ExtractTextOptions, detection?: 
     }
   }
 
-  const locale = Config.sourceLanguage
   const loader = CurrentFile.loader
+  // 提取结果要写进项目里的中文语言文件（可能是 chs.json），不是设置里那个 zh-cn
+  const locale = resolveProjectLocale(Config.sourceLanguage, loader.locales, [Config.displayLanguage]).locale
 
   if (options.rawText && !options.text) {
     const result = parseHardString(options.rawText, options.document?.languageId, options.isDynamic)
@@ -76,7 +78,7 @@ async function ExtractOrInsertCommnad(options?: ExtractTextOptions, detection?: 
       ? []
       : loader.keys
         .map(key => ({
-          description: loader.getValueByKey(key, Config.sourceLanguage, 0),
+          description: loader.getValueByKey(key, locale, 0),
           keypath: key,
         }))
         .filter(item => item.description === text)

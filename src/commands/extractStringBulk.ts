@@ -8,6 +8,7 @@ import { extractHardStrings, generateKeyFromText } from '~/core/Extract'
 import { Config, Global } from '~/core'
 import { parseHardString } from '~/extraction/parseHardString'
 import { splitUnitOrStandalone } from '~/extraction/utils'
+import { analyzeUntouchedChinese, ChineseBreakdown, describeBreakdown, mergeBreakdown } from '~/extraction/explain'
 import { DetectionResultToExtraction } from '~/editor/extract'
 import { Log } from '~/utils'
 import { gitignoredGlob } from '~/utils/glob'
@@ -58,15 +59,32 @@ export async function BatchHardStringExtraction(...args: any[]) {
   // same text must resolve to the same key across the whole run
   const textKeyCache = new Map<string, string>()
 
+  // 以前整批跑完没有任何回执：检测到 0 条时用户完全不知道是没中文、还是被过滤了，
+  // 只能怀疑「功能坏了」。这里把每个文件的检测结果收起来，最后给一次汇总。
+  const emptyReports: ChineseBreakdown[] = []
+  let scanned = 0
+  let unsupported = 0
+  let extracted = 0
+
   for (const document of documents) {
     if (!document)
       continue
 
     try {
+      scanned += 1
       const result = await DetectHardStrings(document, false)
       Log.info(`📤 Extracting [${result?.length || 0}] ${document.uri.fsPath}`)
-      if (!result)
+
+      // 语言没有对应的提取框架：batch 模式传了 warn=false，以前连提示都没有
+      if (!result) {
+        unsupported += 1
         continue
+      }
+
+      if (!result.length) {
+        emptyReports.push(analyzeUntouchedChinese(document.getText(), Config.extractParserHTMLOptions))
+        continue
+      }
 
       const usedKeys: string[] = []
 
@@ -121,6 +139,7 @@ export async function BatchHardStringExtraction(...args: any[]) {
         textKeyCache,
       )
 
+      extracted += extracts.length
     }
     catch (e) {
       Log.error(`Failed to extract ${document.fileName}`)
@@ -128,8 +147,47 @@ export async function BatchHardStringExtraction(...args: any[]) {
     }
   }
 
+  reportBatchResult({ scanned, extracted, unsupported, emptyReports })
 }
 
+function reportBatchResult(summary: {
+  scanned: number
+  extracted: number
+  unsupported: number
+  emptyReports: ChineseBreakdown[]
+}) {
+  const { scanned, extracted, unsupported, emptyReports } = summary
+  if (!scanned)
+    return
+
+  const openSettings = '打开提取设置'
+  const detail = describeBreakdown(mergeBreakdown(emptyReports))
+
+  if (extracted > 0) {
+    window.showInformationMessage(
+      `已从 ${scanned} 个文件提取 ${extracted} 条中文${emptyReports.length ? `；另有 ${emptyReports.length} 个文件没有可提取的中文` : ''}`,
+    )
+    return
+  }
+
+  const lines = [`本批扫描 ${scanned} 个文件，没有可提取的中文。`]
+  if (emptyReports.length) {
+    lines.push(
+      detail
+        ? `检测到的中文分布：${detail}。注释和 console 输出里的中文不会被提取（设计如此）。`
+        : '这些文件里没有检测到中文。',
+    )
+  }
+  if (unsupported)
+    lines.push(`${unsupported} 个文件的语言不支持自动提取。`)
+  if (detail.includes('未纳入检测的属性'))
+    lines.push('需要提取这类属性时，把属性名加到 i18n-ally.extract.parsers.html 的 attributes 里。')
+
+  window.showWarningMessage(lines.join(' '), openSettings).then((choice) => {
+    if (choice === openSettings)
+      commands.executeCommand('workbench.action.openSettings', 'i18n-ally.extract.parsers.html')
+  })
+}
 
 const m: ExtensionModule = () => {
   return [

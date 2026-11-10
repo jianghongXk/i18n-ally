@@ -65,11 +65,13 @@ export class FluentVueSfcLoader extends Loader {
     return Array.from(this._locales)
   }
 
-  async write(pendings: PendingWrite | PendingWrite[]) {
+  async write(pendings: PendingWrite | PendingWrite[]): Promise<number> {
     if (!Array.isArray(pendings))
       pendings = [pendings]
 
     pendings = pendings.filter(i => i)
+
+    let written = 0
 
     for (const pending of pendings) {
       const path = pending.textFromPath || pending.filepath
@@ -94,7 +96,9 @@ export class FluentVueSfcLoader extends Loader {
       }
 
       await this.load()
+      written++
     }
+    return written
   }
 
   canHandleWrites(pending: PendingWrite) {

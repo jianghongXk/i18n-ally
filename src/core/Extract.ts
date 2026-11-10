@@ -6,6 +6,7 @@ import { Config, Global } from '../extension'
 import { ExtractInfo } from './types'
 import { CurrentFile } from './CurrentFile'
 import { changeCase } from '~/utils/changeCase'
+import { resolveProjectLocale } from '~/utils/projectLocale'
 import {
   buildChainFromSegments,
   splitSlashSegments,
@@ -79,7 +80,13 @@ export async function extractHardStrings(document: TextDocument, extracts: Extra
 
   const editor = await window.showTextDocument(document)
   const filepath = document.uri.fsPath
-  const sourceLanguage = Config.sourceLanguage
+  // 提取出来的中文要写进项目的「中文语言文件」。设置里写的可能是 zh-cn，
+  // 而项目里叫 chs.json —— 不对齐就会写到一个新文件里，看着像「提取没反应」。
+  const sourceLanguage = resolveProjectLocale(
+    Config.sourceLanguage,
+    CurrentFile.loader.locales,
+    [Config.displayLanguage],
+  ).locale
 
   // Final safeguard: no matter which extraction path produced the extracts,
   // always split the trailing unit suffix like `(kW)` / `(元/MWh)` out of the
@@ -286,7 +293,7 @@ function findLastImportLine(lines: string[]): number {
  * 仅在「脚本文件 + 本次替换会引入 $t + 全文尚无 $t 定义 + 配置了导入语句」时返回。
  */
 /** 找到 .vue 里第一个 <script> 块的行范围（不含标签行本身） */
-function findScriptBlock(lines: string[]): { start: number, end: number } | null {
+function findScriptBlock(lines: string[]): { start: number; end: number } | null {
   let start = -1
   for (let i = 0; i < lines.length; i++) {
     if (/<script\b/.test(lines[i])) {
@@ -308,7 +315,7 @@ function findScriptBlock(lines: string[]): { start: number, end: number } | null
  * 计算需要补的 import 及其插入位置。
  * 仅在「脚本文件/Vue 的 script 块 + 本次替换会引入 $t + 尚无 $t 定义 + 配置了导入语句」时返回。
  */
-function resolveAutoImport(document: TextDocument, extracts: ExtractInfo[]): { position: Position, text: string } | null {
+function resolveAutoImport(document: TextDocument, extracts: ExtractInfo[]): { position: Position; text: string } | null {
   const statement = Config.extractAutoImportStatement
   if (!statement)
     return null

@@ -3,6 +3,14 @@ import TranslateEngine, { TranslateOptions, TranslateResult } from "./base";
 import { Config } from "~/core";
 
 export default class OpenAITranslate extends TranslateEngine {
+  get id() {
+    return 'openai'
+  }
+
+  get localesNote(): string | undefined {
+    return '按语言名写进提示词，不做语言码转换；项目里的语言标识会原样传给模型'
+  }
+
   apiRoot = "https://api.openai.com";
   systemPrompt = "You are a professional translation engine. Please translate text without explanation.";
 

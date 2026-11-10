@@ -90,7 +90,8 @@ const annotation: ExtensionModule = (ctx) => {
     const inplaces: DecorationOptions[] = []
     const maxLength = Config.annotationMaxLength
 
-    const sourceLanguage = Config.sourceLanguage
+    // 项目里的中文文件可能叫 chs.json，不能拿设置里的 zh-cn 直接取值
+    const sourceLanguage = Config.alignToProject(CurrentFile.loader?.locales)
     const showAnnotations = Config.annotations
     const annotationInPlace = Config.annotationInPlace
     const themeAnnotationMissing = Config.themeAnnotationMissing

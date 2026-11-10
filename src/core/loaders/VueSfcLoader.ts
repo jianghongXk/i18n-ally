@@ -1,11 +1,11 @@
 import { workspace, Uri, TextDocument, WorkspaceEdit, Range } from 'vscode'
 import { squeeze, SFCI18nBlock, MetaLocaleMessage, infuse } from 'vue-i18n-locale-message'
-import { Log, applyPendingToObject, File, unflatten } from '~/utils'
 import { PendingWrite, NodeOptions } from '../types'
 import { LocaleTree } from '../Nodes'
 import { Global } from '../Global'
 import { Config } from '../Config'
 import { Loader } from './Loader'
+import { Log, applyPendingToObject, File, unflatten } from '~/utils'
 
 export class VueSfcLoader extends Loader {
   constructor(
@@ -82,13 +82,15 @@ export class VueSfcLoader extends Loader {
     return Array.from(this._locales)
   }
 
-  async write(pendings: PendingWrite | PendingWrite[]) {
+  async write(pendings: PendingWrite | PendingWrite[]): Promise<number> {
     if (!Array.isArray(pendings))
       pendings = [pendings]
     pendings = pendings.filter(i => i)
 
     if (!this._meta)
-      return
+      return 0
+
+    let written = 0
 
     for (const pending of pendings) {
       const record = this.getRecordByKey(pending.keypath, pending.locale, true)
@@ -107,6 +109,7 @@ export class VueSfcLoader extends Loader {
         pending.value,
         await Global.requestKeyStyle(),
       )
+      written++
     }
 
     const doc = await workspace.openTextDocument(this.uri)
@@ -123,6 +126,7 @@ export class VueSfcLoader extends Loader {
     }
 
     await this.load()
+    return written
   }
 
   canHandleWrites(pending: PendingWrite) {

@@ -3,10 +3,10 @@ import path from 'path'
 import fg from 'fast-glob'
 import JSON5 from 'json5'
 import { commands, window, workspace } from 'vscode'
-import type { QuickPickItem } from 'vscode'
-import type { ExtensionContext } from 'vscode'
+import type { ExtensionContext, QuickPickItem } from 'vscode'
 import { Commands } from './commands'
 import { ConfigLocalesGuide } from './configLocalePaths'
+import { applyRecommendedLocaleMap } from './configTranslateLocales'
 import { ExtensionModule } from '~/modules'
 import { Config } from '~/core'
 import { promptAndSaveCreds } from '~/core/BizSync'
@@ -597,6 +597,23 @@ export class SetupWizard {
       if (engine) {
         await Config.updateConfig('translate.engines', [engine], false)
         written.push(`翻译引擎 → ${engine}`)
+      }
+
+      // 把项目里真实存在的语言文件与引擎的可用语言连起来。
+      // chs / can 这类非标准码如果不绑，翻译时会被静默跳过（表现为「部分文案没翻译」）。
+      if (engine) {
+        try {
+          const map = await applyRecommendedLocaleMap(engine, root, relPath)
+          const parts = [`翻译语言映射 → 自动写入 ${map.written} 条`]
+          if (map.fixedTagSystem)
+            parts.push('languageTagSystem 已改为 none')
+          if (map.unresolved.length)
+            parts.push(`未识别 ${map.unresolved.join('、')}，可用「配置翻译语言映射」手动绑定`)
+          written.push(parts.join('；'))
+        }
+        catch (e) {
+          Log.warn(`[setup] 写入翻译语言映射失败: ${(e as Error).message}`)
+        }
       }
 
       if (baidu?.appid) {

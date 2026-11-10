@@ -5,6 +5,7 @@ import { LocaleTree, LocaleNode, LocaleRecord, FlattenLocaleTree } from '../Node
 import { Coverage, FileInfo, PendingWrite, NodeOptions, RewriteKeySource, RewriteKeyContext, DataProcessContext } from '../types'
 import { Config, Global } from '..'
 import { resolveFlattenRootKeypath, resolveFlattenRoot, NodeHelper } from '~/utils'
+import { resolveProjectLocale } from '~/utils/projectLocale'
 
 const NESTED_PLURALIZATION_KEYS = ['one', 'other', 'zero', 'two', 'few', 'many']
 export abstract class Loader extends Disposable {
@@ -22,6 +23,14 @@ export abstract class Loader extends Disposable {
   }
 
   abstract get locales(): string[]
+
+  /**
+   * 配置里的源语言对齐到本项目真实存在的语言文件后的结果。
+   * 设置里写 zh-cn、项目里叫 chs.json 时，读/写都应该落到 chs 上。
+   */
+  protected get sourceLocaleInProject(): string {
+    return resolveProjectLocale(Config.sourceLanguage, this.locales, [Config.displayLanguage]).locale
+  }
 
   get root() {
     return this._localeTree
@@ -266,7 +275,7 @@ export abstract class Loader extends Disposable {
     if (node && node.type !== 'tree')
       return node
 
-    const language = locale || Config.sourceLanguage
+    const language = locale || this.sourceLocaleInProject
     if (
       node
       && node.type === 'tree'
@@ -322,7 +331,8 @@ export abstract class Loader extends Disposable {
     return locales
   }
 
-  abstract write (pendings: PendingWrite | PendingWrite[]): Promise<void>
+  /** 返回真正写入的 pending 条数；上层据此判断"翻译成功"是否真的落盘了 */
+  abstract write (pendings: PendingWrite | PendingWrite[]): Promise<number>
 
   canHandleWrites(pending: PendingWrite) {
     return false
@@ -336,7 +346,7 @@ export abstract class Loader extends Disposable {
     return false
   }
 
-  searchKeyForTranslations(text: string, locale = Config.sourceLanguage) {
+  searchKeyForTranslations(text: string, locale = this.sourceLocaleInProject) {
     return this.keys
       .find(i => this.getTranslationsByKey(i, false)?.[locale]?.value === text)
   }

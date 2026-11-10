@@ -1,7 +1,7 @@
 {
   "publisher": "lokalise",
   "name": "i18n-ally",
-  "version": "2.16.7-dev.57",
+  "version": "2.17.0",
   "displayName": "i18n Ally Support Regex",
   "description": "🌍 All in one i18n extension for VS Code with regex support",
   "keywords": [
@@ -431,6 +431,26 @@
         "command": "i18n-ally.setup-wizard",
         "category": "%extname%",
         "title": "初始化配置引导（语言文件 / 翻译引擎 / 百度密钥）"
+      },
+      {
+        "command": "i18n-ally.config-translate-locales",
+        "category": "%extname%",
+        "title": "配置翻译语言映射（语言文件 ↔ 翻译引擎）"
+      },
+      {
+        "command": "i18n-ally.open-workspace-settings",
+        "category": "%extname%",
+        "title": "打开当前项目的 settings.json"
+      },
+      {
+        "command": "i18n-ally.select-locale-files",
+        "category": "%extname%",
+        "title": "逐个选取本项目的语言文件"
+      },
+      {
+        "command": "i18n-ally.create-locale-file",
+        "category": "%extname%",
+        "title": "从翻译引擎语言清单创建语言文件"
       }
     ],
     "keybindings": [
@@ -801,6 +821,15 @@
           "description": "%config.locales_paths%",
           "scope": "resource"
         },
+        "i18n-ally.localeFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "%config.locale_files%"
+        },
         "i18n-ally.encoding": {
           "type": "string",
           "default": "utf-8",
@@ -825,6 +854,11 @@
             "nested",
             "flat"
           ],
+          "enumDescriptions": [
+            "%config.keystyle.auto%",
+            "%config.keystyle.nested%",
+            "%config.keystyle.flat%"
+          ],
           "description": "%config.keystyle%"
         },
         "i18n-ally.dirStructure": {
@@ -833,6 +867,11 @@
             "auto",
             "file",
             "dir"
+          ],
+          "enumDescriptions": [
+            "%config.dir_structure.auto%",
+            "%config.dir_structure.file%",
+            "%config.dir_structure.dir%"
           ],
           "description": "%config.dir_structure%"
         },
@@ -904,6 +943,36 @@
               "fluent-vue-sfc",
               "next-intl",
               "next-international"
+            ],
+            "enumDescriptions": [
+              "%config.enabled_frameworks.vue%",
+              "%config.enabled_frameworks.react%",
+              "%config.enabled_frameworks.vscode%",
+              "%config.enabled_frameworks.ngx-translate%",
+              "%config.enabled_frameworks.i18next%",
+              "%config.enabled_frameworks.react-i18next%",
+              "%config.enabled_frameworks.i18next-shopify%",
+              "%config.enabled_frameworks.i18n-tag%",
+              "%config.enabled_frameworks.flutter%",
+              "%config.enabled_frameworks.vue-sfc%",
+              "%config.enabled_frameworks.ember%",
+              "%config.enabled_frameworks.chrome-ext%",
+              "%config.enabled_frameworks.ruby-rails%",
+              "%config.enabled_frameworks.custom%",
+              "%config.enabled_frameworks.laravel%",
+              "%config.enabled_frameworks.transloco%",
+              "%config.enabled_frameworks.svelte%",
+              "%config.enabled_frameworks.globalize%",
+              "%config.enabled_frameworks.ui5%",
+              "%config.enabled_frameworks.next-translate%",
+              "%config.enabled_frameworks.php-gettext%",
+              "%config.enabled_frameworks.general%",
+              "%config.enabled_frameworks.lingui%",
+              "%config.enabled_frameworks.jekyll%",
+              "%config.enabled_frameworks.fluent-vue%",
+              "%config.enabled_frameworks.fluent-vue-sfc%",
+              "%config.enabled_frameworks.next-intl%",
+              "%config.enabled_frameworks.next-international%"
             ]
           },
           "description": "%config.enabled_frameworks%"
@@ -923,6 +992,18 @@
               "php",
               "properties",
               "ftl"
+            ],
+            "enumDescriptions": [
+              "%config.enabled_parsers.js%",
+              "%config.enabled_parsers.ts%",
+              "%config.enabled_parsers.json%",
+              "%config.enabled_parsers.json5%",
+              "%config.enabled_parsers.yaml%",
+              "%config.enabled_parsers.ini%",
+              "%config.enabled_parsers.po%",
+              "%config.enabled_parsers.php%",
+              "%config.enabled_parsers.properties%",
+              "%config.enabled_parsers.ftl%"
             ]
           },
           "description": "%config.enabled_parsers%"
@@ -944,6 +1025,10 @@
           "enum": [
             "binary",
             "locale"
+          ],
+          "enumDescriptions": [
+            "%config.sort_compare.binary%",
+            "%config.sort_compare.locale%"
           ],
           "default": "binary",
           "description": "%config.sort_compare%"
@@ -989,6 +1074,10 @@
             "space",
             "tab"
           ],
+          "enumDescriptions": [
+            "%config.tab_style.space%",
+            "%config.tab_style.tab%"
+          ],
           "description": "%config.tab_style%"
         },
         "i18n-ally.namespace": {
@@ -1006,6 +1095,11 @@
             "legacy",
             "none"
           ],
+          "enumDescriptions": [
+            "%config.language_tag_system.bcp47%",
+            "%config.language_tag_system.legacy%",
+            "%config.language_tag_system.none%"
+          ],
           "default": "bcp47",
           "description": "%config.language_tag_system%"
         },
@@ -1018,18 +1112,22 @@
         },
         "i18n-ally.theme.annotation": {
           "type": "string",
+          "description": "%config.theme_annotation%",
           "default": "rgba(153, 153, 153, .8)"
         },
         "i18n-ally.theme.annotationMissing": {
           "type": "string",
+          "description": "%config.theme_annotation_missing%",
           "default": "rgba(153, 153, 153, .3)"
         },
         "i18n-ally.theme.annotationBorder": {
           "type": "string",
+          "description": "%config.theme_annotation_border%",
           "default": "rgba(153, 153, 153, .2)"
         },
         "i18n-ally.theme.annotationMissingBorder": {
           "type": "string",
+          "description": "%config.theme_annotation_missing_border%",
           "default": "rgba(153, 153, 153, .2)"
         },
         "i18n-ally.regex.key": {
@@ -1106,6 +1204,21 @@
           "default": false,
           "description": "%config.translate.fallbackToKey%"
         },
+        "i18n-ally.translate.fallbackFromOtherLocales": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "%config.fallback_from_other_locales%"
+        },
+        "i18n-ally.translate.fallbackSourceOrder": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "%config.fallback_source_order%"
+        },
         "i18n-ally.translate.engines": {
           "type": "array",
           "items": {
@@ -1117,12 +1230,26 @@
               "libretranslate",
               "baidu",
               "openai"
+            ],
+            "enumDescriptions": [
+              "%config.translate.engines.google%",
+              "%config.translate.engines.google-cn%",
+              "%config.translate.engines.deepl%",
+              "%config.translate.engines.libretranslate%",
+              "%config.translate.engines.baidu%",
+              "%config.translate.engines.openai%"
             ]
           },
           "default": [
             "google"
           ],
           "description": "%config.translate.engines%"
+        },
+        "i18n-ally.translate.localeMap": {
+          "type": "object",
+          "default": {},
+          "scope": "resource",
+          "markdownDescription": "%config.locale_map%"
         },
         "i18n-ally.translate.parallels": {
           "type": "number",
@@ -1199,7 +1326,19 @@
             "gpt-4-32k-0314",
             "gpt-4-32k-0613"
           ],
-          "description": "%config.openai_api_model%"
+          "description": "%config.openai_api_model%",
+          "enumDescriptions": [
+            "%config.openai_api_model.gpt-3.5-turbo%",
+            "%config.openai_api_model.gpt-3.5-turbo-16k%",
+            "%config.openai_api_model.gpt-3.5-turbo-0301%",
+            "%config.openai_api_model.gpt-3.5-turbo-0613%",
+            "%config.openai_api_model.gpt-4%",
+            "%config.openai_api_model.gpt-4-0314%",
+            "%config.openai_api_model.gpt-4-0613%",
+            "%config.openai_api_model.gpt-4-32k%",
+            "%config.openai_api_model.gpt-4-32k-0314%",
+            "%config.openai_api_model.gpt-4-32k-0613%"
+          ]
         },
         "i18n-ally.usage.scanningIgnore": {
           "type": "array",
@@ -1218,18 +1357,22 @@
         },
         "i18n-ally.frameworks.ruby-rails.scopeRoot": {
           "type": "string",
+          "description": "%config.ruby_scope_root%",
           "default": "app/views"
         },
         "i18n-ally.parsers.typescript.tsNodePath": {
           "type": "string",
+          "description": "%config.ts_node_path%",
           "default": "node_modules/ts-node/dist/bin.js"
         },
         "i18n-ally.parsers.typescript.compilerOptions": {
           "type": "object",
+          "description": "%config.ts_compiler_options%",
           "default": {}
         },
         "i18n-ally.parsers.extendFileExtensions": {
           "type": "object",
+          "description": "%config.parsers_extend_file_extensions%",
           "default": {}
         },
         "i18n-ally.review.enabled": {
@@ -1269,6 +1412,12 @@
             "empty",
             "source"
           ],
+          "enumDescriptions": [
+            "%config.keygen_strategy.slug%",
+            "%config.keygen_strategy.random%",
+            "%config.keygen_strategy.empty%",
+            "%config.keygen_strategy.source%"
+          ],
           "description": "%config.keygen_strategy%"
         },
         "i18n-ally.extract.keygenStyle": {
@@ -1281,6 +1430,14 @@
             "camelCase",
             "PascalCase",
             "ALL_CAPS"
+          ],
+          "enumDescriptions": [
+            "%config.keygen_style.default%",
+            "%config.keygen_style.kebab-case%",
+            "%config.keygen_style.snake_case%",
+            "%config.keygen_style.camelCase%",
+            "%config.keygen_style.PascalCase%",
+            "%config.keygen_style.ALL_CAPS%"
           ],
           "description": "%config.keygen_style%"
         },
@@ -1307,9 +1464,9 @@
           "enumDescriptions": [
             "%config.target_picking_strategy.none%",
             "%config.target_picking_strategy.most-similar%",
+            "%config.target_picking_strategy.most-similar-by-key%",
             "%config.target_picking_strategy.file-previous%",
-            "%config.target_picking_strategy.global-previous%",
-            "%config.target_picking_strategy.most-similar-by-key%"
+            "%config.target_picking_strategy.global-previous%"
           ],
           "description": "%config.target_picking_strategy%"
         },
@@ -1370,23 +1527,24 @@
           "description": "%config.extract_ignored_by_files%"
         },
         "i18n-ally.parserOptions": {
-          "type": "object"
+          "type": "object",
+          "description": "%config.parser_options%"
         },
         "i18n-ally.defaultNamespace": {
           "type": "string",
           "description": "%config.default_namespace%"
         },
         "i18n-ally.derivedKeyRules": {
-          "deprecationMessage": "Deprecated. Use \"i18n-ally.usage.derivedKeyRules\" instead."
+          "deprecationMessage": "%config.deprecated_derived_key_rules%"
         },
         "i18n-ally.filenameMatchRegex": {
-          "deprecationMessage": "Deprecated. Use \"i18n-ally.pathMatcher\" instead."
+          "deprecationMessage": "%config.deprecated_filename_match_regex%"
         },
         "i18n-ally.fileNamespace": {
-          "deprecationMessage": "Deprecated. Use \"i18n-ally.namespace\" instead."
+          "deprecationMessage": "%config.deprecated_file_namespace%"
         },
         "i18n-ally.keyMatchRegex": {
-          "deprecationMessage": "Deprecated. Use \"i18n-ally.regex.key\" instead."
+          "deprecationMessage": "%config.deprecated_key_match_regex%"
         },
         "vue-i18n-ally.localesPaths": {
           "deprecationMessage": "%config.deprecated%"

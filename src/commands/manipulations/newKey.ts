@@ -1,6 +1,7 @@
 import { window } from 'vscode'
 import { overrideConfirm } from '../overrideConfirm'
 import { keypathValidate, Log, promptEdit } from '~/utils'
+import { resolveProjectLocale } from '~/utils/projectLocale'
 import i18n from '~/i18n'
 import { CurrentFile, Config, Global, PendingWrite, Telemetry, TelemetryKey } from '~/core'
 
@@ -23,7 +24,14 @@ export async function NewKey(keypath?: string) {
       return
     }
 
-    keypath = CurrentFile.loader.rewriteKeys(keypath, 'write', { locale: Config.sourceLanguage })
+    // 源语言要对齐到项目里真实存在的语言文件（配置写 zh-cn，项目里可能是 chs.json）
+    const sourceLocale = resolveProjectLocale(
+      Config.sourceLanguage,
+      CurrentFile.loader.locales,
+      [Config.displayLanguage],
+    ).locale
+
+    keypath = CurrentFile.loader.rewriteKeys(keypath, 'write', { locale: sourceLocale })
 
     const shouldOverride = await overrideConfirm(keypath, false, true)
 
@@ -35,7 +43,6 @@ export async function NewKey(keypath?: string) {
     if (shouldOverride !== 'override')
       return
 
-    const sourceLocale = Config.sourceLanguage
     const value = await promptEdit(keypath, sourceLocale, '')
 
     if (value === undefined)

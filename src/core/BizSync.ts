@@ -1,8 +1,9 @@
 import axios from 'axios'
 import { TextDocument, Uri, window, workspace } from 'vscode'
-import { Config, CurrentFile } from '~/core'
-import { Log } from '~/utils'
 import { runLocaleSync } from './SyncScript'
+import { Config, CurrentFile, TranslateSaveOutcome } from '~/core'
+import { Log } from '~/utils'
+import { resolveProjectLocale } from '~/utils/projectLocale'
 import { decryptField, encryptEcb, encryptField } from '~/utils/aesEcb'
 
 const KEY_RE = /\$t\(\s*['"]([^'"]+)['"]/g
@@ -16,6 +17,20 @@ interface Auth {
   header: string
   token: string
   expiresAt?: number
+}
+
+/**
+ * 后端 lang 必须和项目里的语言文件一致（chs / en / can），
+ * 而不是设置里那个可能是 zh-cn 的全局源语言标识。
+ */
+function projectSourceLanguage(): string {
+  try {
+    const loader = CurrentFile.loader
+    return resolveProjectLocale(Config.sourceLanguage, loader.locales, [Config.displayLanguage]).locale
+  }
+  catch {
+    return Config.sourceLanguage
+  }
 }
 
 const authHeaders = (auth: Auth): Record<string, string> =>
@@ -37,7 +52,7 @@ interface LocalCreds {
   clientId?: string
 }
 
-let authCache: { auth: Auth, expiresAt: number } | null = null
+let authCache: { auth: Auth; expiresAt: number } | null = null
 
 /** 从本地状态文件读取账号密码（该文件已在 .gitignore 中，不会上传） */
 async function readLocalCreds(): Promise<LocalCreds | null> {
@@ -71,7 +86,7 @@ async function login(base: string, creds: LocalCreds): Promise<Auth | null> {
       password: encryptField(creds.password),
     }, { timeout: TIMEOUT })
 
-    const { ok, data, msg } = unwrap<{ accessToken?: string, tokenHeader?: string, expiresIn?: string }>(res.data)
+    const { ok, data, msg } = unwrap<{ accessToken?: string; tokenHeader?: string; expiresIn?: string }>(res.data)
     if (!ok || !data?.accessToken) {
       Log.warn(`[sync] 登录失败: ${msg || '未返回 accessToken'}`)
       return null
@@ -169,13 +184,27 @@ async function resolveAuth(base: string, cfg: SyncCfg): Promise<Auth | null> {
   return auth
 }
 
-
 interface SyncResult {
   created: number
   existed: number
   linked: number
   alreadyLinked: number
   failed: number
+}
+
+/** 把「译文到底有没有写进语言文件」说清楚，别让「同步完成」盖住未落盘的事实 */
+function describeTranslation(outcome: TranslateSaveOutcome | undefined, failure?: string): string {
+  if (failure)
+    return `翻译失败：${failure}`
+  if (!outcome)
+    return '未执行翻译'
+  if (outcome.error)
+    return `翻译写入失败：${outcome.error}`
+  if (outcome.mode === 'candidates')
+    return `翻译 ${outcome.candidates} 条仅存为候选，未写入语言文件`
+  if (outcome.skipped)
+    return `翻译写入 ${outcome.written} 条，${outcome.skipped} 条未落盘`
+  return `翻译写入 ${outcome.written} 条`
 }
 
 /**
@@ -212,7 +241,7 @@ export async function syncKeysToBackend(
 
   // 2) key -> 源语言文案（同步按文案去重）
   const loader = CurrentFile.loader
-  const source = Config.sourceLanguage
+  const source = resolveProjectLocale(Config.sourceLanguage, loader.locales, [Config.displayLanguage]).locale
   const descriptions = new Map<string, string[]>()
   for (const key of keys) {
     let value: unknown
@@ -252,7 +281,7 @@ export async function syncKeysToBackend(
       try {
         for (let i = 0; i < descs.length; i += CONCURRENCY) {
           const chunk = descs.slice(i, i + CONCURRENCY)
-          await Promise.all(chunk.map(async (desc) => {
+          await Promise.all(chunk.map(async(desc) => {
             try {
               const id = await addCode(base, desc, auth)
               if (id)
@@ -286,6 +315,12 @@ export async function syncKeysToBackend(
         if (e instanceof AuthError) {
           authCache = null
           Log.error(`[sync] 鉴权失败，推送中止: ${e.message}`)
+          // 手动「同步 key 到后端」命令传了 throwOnAuthError，登录失效要让它
+          // 明确报错，而不是一句「已跳过推送，继续回填」把失败糊过去
+          if (options?.throwOnAuthError) {
+            status?.dispose()
+            throw e
+          }
           window.showWarningMessage(`i18n: 推送中止（${e.message}），已跳过推送，继续回填本地译文`)
         }
         else {
@@ -301,34 +336,43 @@ export async function syncKeysToBackend(
   // runLocaleSync 走的是 dev server 的 syncAndUpdateLocales.py：拉后端全量词条、
   // 清理重复 key、补全其它语言、并把源码里的临时 key 换成后端数字 id。
   // 没配后端时既没数据源也没必要跑这个全局脚本，直接跳过。
+  let localeSyncOk = true
   if (canPush && descs.length)
-    await runLocaleSync()
+    localeSyncOk = await runLocaleSync()
+
+  if (!localeSyncOk)
+    window.showWarningMessage('i18n: 本地词条刷新失败（dev server 无应答），后续翻译可能基于旧词条，请确认 pnpm dev 正在运行')
 
   // 第三步：把其它语言里缺失/空值的词条翻译掉（复用「翻译全部」命令）
   // 没后端时这是唯一有意义的动作，所以不受 translateAfterSync 开关约束
+  let translationOutcome: TranslateSaveOutcome | undefined
+  let translationFailure: string | undefined
   if (descs.length && (canPush ? cfg.translateAfterSync : true)) {
     try {
       const { TranslateAllMissing } = await import('~/commands/manipulations/translateAllMissing')
-      await TranslateAllMissing()
+      // 同步后自动补全不该再弹一次「确认翻译 N 条」的 modal，
+      // 否则用户没点就把流程卡住，还会误以为已经翻译完成
+      translationOutcome = await TranslateAllMissing({ skipConfirm: true })
     }
     catch (e) {
-      Log.warn(`[sync] 自动翻译失败: ${(e as Error).message}`)
+      translationFailure = (e as Error).message
+      Log.warn(`[sync] 自动翻译失败: ${translationFailure}`)
     }
   }
+  const translationText = describeTranslation(translationOutcome, translationFailure)
 
   if (!canPush) {
-    Log.info(`[sync] 未配置后端，已跳过推送与本地词条刷新，直接翻译（覆盖 ${keys.size} 个 key）`)
-    window.showInformationMessage('i18n: 未配置后端地址，已跳过推送，直接翻译缺失词条')
+    Log.info(`[sync] 未配置后端，已跳过推送与本地词条刷新，直接翻译（覆盖 ${keys.size} 个 key）· ${translationText}`)
+    window.showInformationMessage(`i18n: 未配置后端地址，已跳过推送，直接翻译缺失词条 · ${translationText}`)
     return result
   }
 
-  Log.info(`[sync] 完成：新增 ${result.created}，已存在 ${result.existed}，新关联 ${result.linked}，已关联 ${result.alreadyLinked}，失败 ${result.failed}`)
+  Log.info(`[sync] 完成：新增 ${result.created}，已存在 ${result.existed}，新关联 ${result.linked}，已关联 ${result.alreadyLinked}，失败 ${result.failed} · ${translationText}`)
   window.showInformationMessage(
-    `i18n: 后端同步完成（新增 ${result.created} / 已存在 ${result.existed} / 新关联 ${result.linked} / 已关联 ${result.alreadyLinked} / 失败 ${result.failed}）`,
+    `i18n: 后端同步完成（新增 ${result.created} / 已存在 ${result.existed} / 新关联 ${result.linked} / 已关联 ${result.alreadyLinked} / 失败 ${result.failed}）· ${translationText}`,
   )
   return result
 }
-
 
 export class AuthError extends Error {}
 
@@ -340,7 +384,7 @@ interface Envelope<T> {
 }
 
 /** 拆包装：成功返回 data，业务失败或无包装时按情况返回 */
-function unwrap<T>(body: unknown): { ok: boolean, data?: T, msg?: string, code?: string } {
+function unwrap<T>(body: unknown): { ok: boolean; data?: T; msg?: string; code?: string } {
   if (body && typeof body === 'object' && 'code' in (body as Record<string, unknown>)) {
     const env = body as Envelope<T>
     return { ok: String(env.code) === '0', data: env.data, msg: env.msg, code: String(env.code) }
@@ -352,7 +396,7 @@ function unwrap<T>(body: unknown): { ok: boolean, data?: T, msg?: string, code?:
 /** 新增编码，返回新 id；已存在或失败返回 null */
 async function addCode(base: string, description: string, auth: Auth): Promise<number | null> {
   try {
-    const res = await axios.post(`${base}/i18n/code`, { lang: Config.sourceLanguage, description }, { timeout: TIMEOUT, headers: authHeaders(auth) })
+    const res = await axios.post(`${base}/i18n/code`, { lang: projectSourceLanguage(), description }, { timeout: TIMEOUT, headers: authHeaders(auth) })
     const { ok, data, code, msg } = unwrap<number>(res.data)
     if (code === '401')
       throw new AuthError(msg || '登录状态已过期')

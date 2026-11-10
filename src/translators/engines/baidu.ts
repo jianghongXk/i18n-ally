@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import axios from 'axios'
 import qs from 'qs'
+import { findLocaleIn } from '../locales'
 import TranslateEngine, { TranslateOptions, TranslateResult, BatchTranslateOptions, BatchTranslateResult } from './base'
 import { Config } from '~/core'
 
@@ -12,8 +13,17 @@ interface BaiduSignOptions {
 }
 
 export default class BaiduTranslate extends TranslateEngine {
+  get id() {
+    return 'baidu'
+  }
+
   apiLink = 'https://fanyi.baidu.com'
   apiRoot = 'https://fanyi-api.baidu.com'
+
+  /**
+   * 百度通用文本翻译没有公开「取语种列表」的接口，语种表由本引擎声明在
+   * BAIDU_LOCALES 并注册进 locales.ts，配置界面通过 supportedLocales 读同一份。
+   */
 
   async translate(options: TranslateOptions) {
     let { from = 'auto', to = 'auto' } = options
@@ -168,43 +178,21 @@ export default class BaiduTranslate extends TranslateEngine {
     return { results }
   }
 
+  /**
+   * 项目 locale → 百度 API 语言码。
+   * 映射表统一放在 ../locales.ts（引擎与配置界面共用），这里只保留「主语言码兜底」。
+   * 以前 chs / can 这类三字母文件名会原样传给百度，接口返回错误码后被静默丢弃，
+   * 表现就是「部分文案没翻译」；现在它们会分别命中 zh / cht。
+   */
   convertToSupportedLocales(locale: string): string {
+    const found = findLocaleIn(this.supportedLocales, locale)
+    if (found)
+      return found.code
+
     const normalized = locale.replace(/-/g, '_')
-    const localeMap: Record<string, string> = {
-      ja: 'jp',
-      ko: 'kor',
-      fr: 'fra',
-      es: 'spa',
-      ar: 'ara',
-      ru: 'ru',
-      pt: 'pt',
-      de: 'de',
-      it: 'it',
-      el: 'el',
-      nl: 'nl',
-      pl: 'pl',
-      bul: 'bul',
-      est: 'est',
-      dan: 'dan',
-      fin: 'fin',
-      cs: 'cs',
-      rom: 'rom',
-      slo: 'slo',
-      swe: 'swe',
-      hu: 'hu',
-      vie: 'vie',
-      th: 'th',
-      zh: 'zh',
-      zh_CN: 'zh',
-      zh_TW: 'cht',
-      zh_HK: 'cht',
-    }
-    
-    if (localeMap[normalized])
-      return localeMap[normalized]
-    
     const primary = normalized.split('_')[0]
-    return localeMap[primary] || primary
+    const byPrimary = findLocaleIn(this.supportedLocales, primary)
+    return byPrimary?.code || primary
   }
 
   getSign({ appid, salt, query, secret }: BaiduSignOptions): string {

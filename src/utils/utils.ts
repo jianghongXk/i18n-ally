@@ -62,16 +62,14 @@ export function setNested(obj: any, keys: string[], value: any) {
   if (!keys.length)
     return
   const key = keys[0]
-  if (keys.length === 1)
-    set(obj, key, value)
+  if (keys.length === 1) { set(obj, key, value) }
   else {
     const existing = obj[key]
-    if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+    if (existing && typeof existing === 'object' && !Array.isArray(existing))
       setNested(existing, keys.slice(1), value)
-    }
-    else {
+
+    else
       setNested(set(obj, key, {}, false), keys.slice(1), value)
-    }
   }
 }
 
@@ -79,10 +77,37 @@ export function applyPendingToObject(obj: any, keypath: string, value: any, keyS
   if (!Config.disablePathParsing)
     keypath = resolveFlattenRootKeypath(keypath)
 
-  if (keyStyle === 'flat')
+  if (keyStyle === 'flat') {
+    // 项目里可能同时存在「嵌套对象」和「点号字面 key」两种历史结构。
+    // 若该 keypath 在嵌套结构里已有标量值（哪怕是空串），就更新嵌套位置；
+    // 否则新建一个同名字面 key 会造成重复定义，vue-i18n 走嵌套路径读不到它，
+    // 表现为「翻译写进去了，hover 还是空」。
+    // 只在「同名字面 key 还不存在」时才走嵌套，避免改动项目里已有的
+    // 字面 key（这种混合结构里两种 key 可能同时存在且都在用）。
+    const parts = keypath.split('.')
+    if (parts.length > 1 && !(keypath in obj)) {
+      let cursor = obj
+      let nested = true
+      for (const part of parts.slice(0, -1)) {
+        if (cursor && typeof cursor === 'object' && !Array.isArray(cursor)
+          && part in cursor && cursor[part] && typeof cursor[part] === 'object') { cursor = cursor[part] }
+        else {
+          nested = false
+          break
+        }
+      }
+      const last = parts[parts.length - 1]
+      if (nested && cursor && typeof cursor === 'object'
+        && last in cursor && (cursor[last] === null || typeof cursor[last] !== 'object')) {
+        cursor[last] = value
+        return obj
+      }
+    }
     obj[keypath] = value
-  else
+  }
+  else {
     setNested(obj, keypath.split(/\./g), value)
+  }
 
   return obj
 }
@@ -109,8 +134,8 @@ export function abbreviateNumber(value: number): string {
  */
 export function getLocaleCompare(
   sortLocaleSetting: string | undefined,
-  fileLocale: string
+  fileLocale: string,
 ): (x: string, y: string) => number {
-  const sortLocale = sortLocaleSetting ? sortLocaleSetting : fileLocale;
-  return new Intl.Collator(sortLocale).compare;
+  const sortLocale = sortLocaleSetting || fileLocale
+  return new Intl.Collator(sortLocale).compare
 }

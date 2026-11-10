@@ -50,7 +50,7 @@ export class Refactor implements CodeActionProvider {
   }
 
   private createTranslateQuickFix(key: string, from?: string, to?: string) {
-    from = from || Config.sourceLanguage
+    from = from || Config.alignToProject(CurrentFile.loader?.locales)
     to = to || Config.displayLanguage
     const title = i18n.t('command.translate_key_from', from)
     const action = new CodeAction(title, CodeActionKind.QuickFix)
