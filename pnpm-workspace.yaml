@@ -1,0 +1,25 @@
+# pnpm 12 的项目级配置全部集中在这里（.npmrc 只认 auth/registry 一类，nodeLinker 之类写了也没用）。
+
+# VS Code 扩展打包依赖扁平的 node_modules：
+# scripts/pack-vsix.cjs 按 node_modules/<pkg> 逐个收集 external 包，
+# pnpm 默认的 isolated(符号链接) 布局下这些包不在顶层，会大量 MISSING。
+nodeLinker: hoisted
+
+# 老项目 peer 依赖互不兼容的一大堆，别让 peer 冲突直接阻断安装
+strictPeerDependencies: false
+
+# 只允许 esbuild 跑安装脚本：esbuild 0.12 靠 postinstall 下载平台二进制，不跑就 require 失败。
+# 其余一律拒绝，免得每次 install 都因 ERR_PNPM_IGNORED_BUILDS 或构建失败中断：
+#   nodejieba     — 已从包内移除（pinyin 的可选依赖，limax 不触发分词），Node 22 下也编不过
+#   deasync       — 0.1.22 的 build.js 用 spawn('node-gyp.cmd')，Node 18.20+ 禁止无 shell 直接
+#                   spawn .cmd（CVE-2024-27980）必然 EINVAL。改由 `pnpm build:deasync` 手动编译，
+#                   见 scripts/build-deasync.cjs
+#   core-js / keytar / parcel-bundler / nodemon — 与本项目无关
+allowBuilds:
+  esbuild: true
+  nodejieba: false
+  core-js: false
+  keytar: false
+  deasync: false
+  parcel-bundler: false
+  nodemon: false

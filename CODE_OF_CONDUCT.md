@@ -1,7 +1,7 @@
 # Code of Conduct
 
-Lokalise uses [Contributor Covenant
-v2.0](https://contributor-covenant.org/version/2/0/code_of_conduct) as their
+This project uses [Contributor Covenant
+v2.0](https://contributor-covenant.org/version/2/0/code_of_conduct) as its
 code of conduct. The full text is included
 [below](#contributor-covenant-code-of-conduct) in English, and translations are
 available from the Contributor Covenant organisation:
@@ -10,15 +10,14 @@ available from the Contributor Covenant organisation:
 - [github.com/ContributorCovenant](https://github.com/ContributorCovenant/contributor_covenant/tree/release/content/version/2/0)
 
 Refer to the sections on reporting in this document for the
-specific emails that can be used to report and escalate issues.
+channels that can be used to report and escalate issues.
 
 ## Reporting
 
 ### Project Spaces
 
-For reporting issues in spaces related to Lokalise please use the email
-`support@lokalise.com`. Lokalise handles CoC issues
-related to the spaces that it maintains. Projects maintainers commit to:
+Report issues in spaces related to this project through the issue tracker at
+<https://github.com/jianghongXk/i18n-ally/issues>. Maintainers commit to:
 
 - maintain the confidentiality with regard to the reporter of an incident
 - to participate in the path for escalation when required.

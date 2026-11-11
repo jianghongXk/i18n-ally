@@ -74,7 +74,9 @@ const RECOMMENDED: Record<string, any> = {
   },
   pathMatcher: '{locale}.json',
   'review.enabled': true,
-  localeCountryMap: { 'zh-cn': '简体中文', en: 'English' },
+  // 注意：localeCountryMap 的值是「旗帜名」（res/flags/*.svg 的文件名，如 en → us），
+  // 不是语言显示名。早先这里照抄了 ems-ui 的 { en: 'English' }，english.svg 并不存在，
+  // 结果每个新项目的 EN 都显示成「?」。内置默认已含 en→us、zh→cn，一般不用写。
 }
 
 const ENGINES: Pick[] = [
@@ -689,7 +691,7 @@ export async function maybePromptSetup(ctx: ExtensionContext): Promise<void> {
   await ctx.globalState.update(PROMPTED_KEY, true)
 
   const action = await window.showInformationMessage(
-    'i18n Ally：这个项目还没配置语言文件位置，要现在初始化一下吗？',
+    'i18n CN：这个项目还没配置语言文件位置，要现在初始化一下吗？',
     '开始配置',
     '以后再说',
   )

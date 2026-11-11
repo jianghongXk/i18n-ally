@@ -14,7 +14,9 @@ import gotoNextUsage from './gotoNextUsage'
 import batchHardStringsExtract from './extractStringBulk'
 import backendAuth from './backendAuth'
 import setupWizard from './setupWizard'
+import showChangelog from './showChangelog'
 import configTranslateLocales from './configTranslateLocales'
+import deleteLocaleFile from './deleteLocaleFile'
 import { ExtensionModule } from '~/modules'
 
 const m: ExtensionModule = (ctx) => {
@@ -27,7 +29,9 @@ const m: ExtensionModule = (ctx) => {
     batchHardStringsExtract(ctx),
     backendAuth(ctx),
     setupWizard(ctx),
+    showChangelog(ctx),
     configTranslateLocales(ctx),
+    deleteLocaleFile(ctx),
     help(ctx),
     refreshUsageReport(ctx),
     editor(ctx),

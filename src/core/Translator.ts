@@ -395,7 +395,7 @@ export class Translator {
         }
         else if (outcome.skipped > 0) {
           window.showWarningMessage(
-            `已翻译 ${translated} 条，写入 ${outcome.written} 条；${outcome.skipped} 条没写进去（找不到目标语言文件或处于只读模式，详见 i18n Ally 日志）`,
+            `已翻译 ${translated} 条，写入 ${outcome.written} 条；${outcome.skipped} 条没写进去（找不到目标语言文件或处于只读模式，详见 i18n CN 日志）`,
           )
         }
         else if (translated === 1) {

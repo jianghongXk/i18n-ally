@@ -48,6 +48,12 @@ interface ApplyResult {
   written: number
   unresolved: string[]
   fixedTagSystem: boolean
+  /** 扫到的语言：空数组说明一个语言文件都没定位到，和「都绑过了」是两回事 */
+  locales: string[]
+  /** 已有显式绑定、本次跳过的语言数 */
+  skipped: number
+  /** 实际扫描的目录，定位问题用 */
+  dirs: string[]
 }
 
 const BIND = '__bind__'
@@ -70,10 +76,42 @@ function engineLabel(engine: string) {
   return engine === 'baidu' ? '百度翻译' : engine
 }
 
-function resolveDirs(root: string, localePath?: string): string[] {
+function resolveDirs(root: string | undefined, localePath?: string): string[] {
   // localesPaths 允许配多个目录，全部都要扫；显式传入的目录合并进去即可
-  const raw = [...new Set([...(Global.localesPaths || []), ...(localePath ? [localePath] : [])])]
-  return raw.map(d => path.isAbsolute(d) ? d : path.join(root, d))
+  let configured = [...(Global.localesPaths || [])]
+  if (!configured.length) {
+    // Global.localesPaths 在有 _currentWorkspaceFolder 时只读该 folder 作用域，
+    // 拿不到就返回 undefined；此时退回不带作用域的读取（用户级 settings.json），
+    // 否则配置向导会在「明明配了目录」的项目里扫到 0 个文件。
+    try {
+      configured = [...(Config._localesPaths || [])]
+    }
+    catch {
+      configured = []
+    }
+  }
+  const raw = [...new Set([...configured, ...(localePath ? [localePath] : [])])]
+    .filter((d): d is string => typeof d === 'string' && !!d.trim())
+  // 没有项目根目录时（空窗口 / 设置页从欢迎页打开），用户级 localesPaths 里的相对路径
+  // 无从解析：以前直接 path.join(undefined, d) 抛 TypeError，错误被吞掉，表现成「点了没反应」。
+  if (root)
+    return raw.map(d => path.isAbsolute(d) ? d : path.join(root, d))
+  return raw.filter(d => path.isAbsolute(d))
+}
+
+/**
+ * 配置里读不到目录时的兜底：loader 已经把语言文件读进来了，它所在的目录就是答案。
+ * `Global.localesPaths` 依赖 `_currentWorkspaceFolder` / 用户级配置，插件刚重启或
+ * 配置层级不一致时会返回 undefined，此时不该让整个配置向导直接空转。
+ */
+function dirsFromLoader(root: string | undefined): string[] {
+  try {
+    const files: { filepath?: string }[] = (Global.loader as any)?.files || []
+    return [...new Set(files.map(f => f.filepath).filter(Boolean).map(f => path.dirname(f!)))]
+  }
+  catch {
+    return []
+  }
 }
 
 // #region 项目级配置：来源识别、写入位置、语言文件识别自检
@@ -268,7 +306,7 @@ export async function selectLocaleFiles(root: string, localePath?: string): Prom
       label: `${plausible ? '$(file)' : '$(exclude)'} ${workspaceRelative}`,
       description: plausible
         ? `${f.locale} · ${f.keyCount ?? '—'} 条词条`
-        : '不像语言文件（默认不勾选）',
+        : '文件名不像语言码（勾选后按文件名当语言标识，默认不勾选）',
       detail: f.filepath,
       picked: whitelist.length
         ? whitelistSet.has(workspaceRelative.toLowerCase())
@@ -309,9 +347,10 @@ export async function selectLocaleFiles(root: string, localePath?: string): Prom
   // 现有 matcher 解析不出所选文件时才补通用规则，别覆盖项目已有的复杂 pathMatcher
   if (chosen.some(i => !i.locale) && allFlat)
     patch.pathMatcher = '{locale}.{ext}'
-  const tagSystem = workspace.getConfiguration('i18n-ally').get<string>('languageTagSystem') || 'bcp47'
-  if (tagSystem === 'legacy' && chosen.some(i => (i.locale || '').split(/[-_]/)[0].length > 2))
-    patch.languageTagSystem = 'none'
+  // 这里以前会在 legacy + 三位主标签（chs / can）时把 languageTagSystem 强改成 none，
+  // 因为 legacy 的 normalize 把这类语言码归一成空串、文件加载不进来。
+  // 现在白名单里的文件跳过 tagSystem 归一（见 LocaleLoader.getFileInfo），不必再动全局配置——
+  // 强改 none 反而让整个项目失去 bcp47 的归一能力。
 
   const summary = Object.entries(patch)
     .map(([k, v]) => k === 'localeFiles' ? `localeFiles=${(v as string[]).length} 个文件` : `${k}=${JSON.stringify(v)}`)
@@ -435,8 +474,10 @@ function getMatchers(): LocaleMatcher[] {
  *   - 目录扫描：languageTagSystem=legacy 丢掉 chs/can、pathMatcher 没匹配上时，
  *     loader 里看不到，但磁盘上确实有这个文件，也要能列出来提前绑定
  */
-export function collectProjectLocales(root: string, localePath?: string): ProjectScan {
-  const dirs = resolveDirs(root, localePath)
+export function collectProjectLocales(root: string | undefined, localePath?: string): ProjectScan {
+  let dirs = resolveDirs(root, localePath)
+  if (!dirs.length)
+    dirs = dirsFromLoader(root)
   const matchers = getMatchers()
   const scanned = scanLocaleFiles(dirs, { matchers })
   const scannedByPath = new Map(scanned.map(f => [f.filepath.toLowerCase(), f]))
@@ -469,7 +510,7 @@ export function collectProjectLocales(root: string, localePath?: string): Projec
       const extra = scannedByPath.get(f.filepath.toLowerCase())
       upsert(f.locale, {
         filepath: f.filepath,
-        relativePath: path.relative(root, f.filepath).replace(/\\/g, '/'),
+        relativePath: (root ? path.relative(root, f.filepath) : f.filepath).replace(/\\/g, '/'),
         locale: f.locale,
         matcher: f.matcher || extra?.matcher,
         namespace: f.namespace || extra?.namespace,
@@ -537,13 +578,16 @@ export async function applyRecommendedLocaleMap(
   const scan = collectProjectLocales(root, localePath)
   const unresolved: string[] = []
   let written = 0
+  let skipped = 0
 
   // 没声明语言清单的引擎（openai 等）语言码原样透传，不需要也不应该写映射
   if (Config.getTranslateEngineLocales(engine).length) {
     for (const { locale } of scan.locales) {
       const status = Config.getTranslateLocaleStatus(engine, locale)
-      if (status.explicit)
+      if (status.explicit) {
+        skipped += 1
         continue
+      }
       if (!status.resolved) {
         unresolved.push(locale)
         continue
@@ -555,11 +599,15 @@ export async function applyRecommendedLocaleMap(
 
   const fixedTagSystem = await ensureLongLocaleSupport(scan.locales.map(l => l.locale))
 
-  return { written, unresolved, fixedTagSystem }
+  return { written, unresolved, fixedTagSystem, locales: scan.locales.map(l => l.locale), skipped, dirs: scan.dirs }
 }
 
 /** legacy 语言码系统只认 2 字母主码，chs / can / cht 会被判无效、文件不进 loader */
 export async function ensureLongLocaleSupport(locales: string[]): Promise<boolean> {
+  // 配了 localeFiles 白名单时，名单内的文件跳过 tagSystem 归一，三位语言码照样能加载，
+  // 不需要（也不该）为了它把整个项目的语言码系统改成 none。
+  if (Config.localeFiles.length)
+    return false
   const tagSystem = workspace.getConfiguration('i18n-ally').get<string>('languageTagSystem') || 'bcp47'
   const hasLongCode = locales.some(l => l.split(/[-_]/)[0].length > 2)
   if (tagSystem !== 'legacy' || !hasLongCode)
@@ -801,12 +849,16 @@ async function diagnose(engine: string, root: string, localePath?: string): Prom
     return `  ${l.locale.padEnd(16)} ${statusText(engine, l.locale)}\n      文件：${files || '（loader）'} · 词条 ${l.keyCount ?? '—'} · ${l.fromLoader ? 'loader 已加载' : '仅目录扫描'}`
   })
   const bad = scan.locales.filter(l => !Config.getTranslateLocaleStatus(engine, l.locale).supported)
+  const whitelist = Config.localeFiles
   const tagSystem = workspace.getConfiguration('i18n-ally').get<string>('languageTagSystem') || 'bcp47'
   const hasLongCode = scan.locales.some(l => l.locale.split(/[-_]/)[0].length > 2)
+  // 白名单里的文件跳过 tagSystem 归一，legacy 也不会丢弃三字母语言码，警告只在没配白名单时成立
+  const longCodeDropped = tagSystem === 'legacy' && hasLongCode && !whitelist.length
   const source = Config.sourceLanguage
   const sourceFound = scan.locales.some(l => Config.isSameLocale(l.locale, source))
-  const suspicious = findSuspiciousLocales(scan)
-  const whitelist = Config.localeFiles
+  // 白名单一旦启用就是「逐文件勾选」的显式决定：名单里的文件即使名字不像语言码（chs / japanese）
+  // 也会被 loader 认下来（见 LocaleLoader.getFileInfo），此时再提示「可疑语言」纯属噪声。
+  const suspicious = whitelist.length ? [] : findSuspiciousLocales(scan)
   const health = inspectLocaleDirs(root, localePath)
   const { issue } = detectLocaleIssue(root, localePath, scan)
   const missingNote = health.missing.length
@@ -832,7 +884,7 @@ async function diagnose(engine: string, root: string, localePath?: string): Prom
     `语言文件：loader 已加载 ${scan.loaderCount} 个，目录补充 ${scan.scannedCount} 个，未识别 ${scan.unrecognized.length} 个`,
     `语言文件白名单：${whitelist.length ? `${whitelist.length} 个（${whitelist.join('、')}）` : '未配置，按 pathMatcher 自动识别'}`,
     suspicious.length ? `  ⚠ 可疑语言：${suspicious.join('、')}（多半是 commWord.json 之类数据文件被误认，建议逐个选取语言文件）` : '',
-    `语言码系统：${tagSystem}${tagSystem === 'legacy' && hasLongCode ? '  ⚠ 会丢弃 chs/can 这类三字母语言码' : ''}`,
+    `语言码系统：${tagSystem}${longCodeDropped ? '  ⚠ 会丢弃 chs/can 这类三字母语言码（加入 localeFiles 白名单可绕过）' : ''}`,
     `源语言：${source}${sourceFound ? '' : '  ⚠ 项目语言文件里没有这个标识，翻译时会取不到源文'}`,
     '',
     ...rows,
@@ -847,7 +899,7 @@ async function diagnose(engine: string, root: string, localePath?: string): Prom
     actions.push('选择语言文件目录')
   if (suspicious.length || issue === 'recognition')
     actions.push('逐个选取语言文件')
-  if (tagSystem === 'legacy' && hasLongCode)
+  if (longCodeDropped)
     actions.push('修复语言码系统')
   if (bad.length)
     actions.push('去绑定未识别的语言')
@@ -862,9 +914,9 @@ async function diagnose(engine: string, root: string, localePath?: string): Prom
       issue === 'no-path' ? '语言文件目录没配或不存在，插件读不到任何翻译文件。' : '',
       issue === 'recognition' ? `目录里有 ${health.jsonNames.length} 个 JSON，但 loader 一个都没加载，多半是文件名 / pathMatcher 没配上。` : '',
       `另有 ${scan.unrecognized.length} 个文件未识别（默认排除，可手动纳入）。`,
-      tagSystem === 'legacy' && hasLongCode ? '当前 languageTagSystem=legacy 会丢弃三字母语言码。' : '',
+      longCodeDropped ? '当前 languageTagSystem=legacy 会丢弃三字母语言码（把这些文件加入 localeFiles 白名单即可，无需改语言码系统）。' : '',
       sourceFound ? '' : `源语言 ${source} 在项目里找不到对应文件，翻译会取不到源文。`,
-      '完整清单已输出到 i18n Ally 日志。',
+      '完整清单已输出到 i18n CN 日志。',
     ].filter(Boolean).join(' '),
     ...actions,
   )
@@ -1301,16 +1353,80 @@ export async function createLocaleFile(engine?: string, root?: string, localePat
 
 // #endregion
 
-async function run(): Promise<void> {
+/**
+ * 设置页 `translate.localeMap` 的说明里有几个 command 链接。它们各自对应**一个**动作，
+ * 直接执行，不再走下面那个「什么都能干」的菜单 —— 否则点「诊断」还要在菜单里再找一次「诊断」，
+ * 链接和功能就不是一一对应了。菜单本身仍保留（命令面板里的入口）。
+ */
+async function applyAndReport(engine: string, root: string, localePath?: string): Promise<void> {
+  const result = await applyRecommendedLocaleMap(engine, root, localePath)
+  const parts = [`已写入 ${result.written} 条映射`]
+  if (result.skipped)
+    parts.push(`跳过 ${result.skipped} 条（已手动绑定）`)
+  if (result.fixedTagSystem)
+    parts.push('languageTagSystem 已改为 none')
+  if (result.unresolved.length)
+    parts.push(`未识别：${result.unresolved.join('、')}（需手动绑定）`)
+  // 「0 条」有几种完全不同的原因：一个语言文件都没定位到、都绑过了、引擎没有语言码清单。
+  // 以前只说「已写入 0 条」，看不出是哪种，等于让人干瞪眼。
+  if (!result.locales.length) {
+    parts.push(`⚠ 没扫描到语言文件，已查目录：${result.dirs.length ? result.dirs.join('、') : '（空）'}`)
+  }
+  else if (!result.written && !result.unresolved.length) {
+    parts.push(`扫到 ${result.locales.length} 种语言：${result.locales.join('、')}`)
+    if (!result.skipped)
+      parts.push(`「${engine}」没有语言码清单，语言标识会原样传给接口，无需写入映射`)
+  }
+  Log.info(`[locale-map.apply] engine=${engine} root=${root} localePath=${localePath} locales=${JSON.stringify(result.locales)} written=${result.written} skipped=${result.skipped} dirs=${JSON.stringify(result.dirs)}`)
+
+  const message = parts.join('；')
+  if (!result.locales.length)
+    window.showWarningMessage(message)
+  else
+    window.showInformationMessage(message)
+}
+
+async function run(preset?: string): Promise<void> {
   const engine = Config.translateEngines[0] || 'google'
-  const root = Global.rootpath
+  // 空窗口 / 从欢迎页打开设置时 Global.rootpath 是 undefined，而用户级 settings.json 里
+  // 往往还留着相对路径的 localesPaths —— 以前会 path.join(undefined, 'src/locales/files') 直接抛
+  // TypeError，异常没人接，表现成「点了没反应」。
+  const root = Global.rootpath || workspace.workspaceFolders?.[0]?.uri.fsPath
   const localePath = Global.localesPaths?.[0]
+
+  if (!root) {
+    window.showWarningMessage('当前窗口没有打开项目文件夹。语言映射跟随项目保存，请先打开要配置的项目，再执行这个操作。')
+    return
+  }
+
+  if (preset) {
+    // 设置页的链接各自只做一个动作，进来就执行，不再弹那个 10 项菜单。
+    const label = preset === APPLY
+      ? '可视化配置语言映射'
+      : preset === BIND ? '手动绑定语言' : '诊断当前配置'
+    try {
+      if (preset === APPLY)
+        await applyAndReport(engine, root, localePath)
+      else if (preset === BIND)
+        await bindOne(engine, root, localePath)
+      else
+        await diagnose(engine, root, localePath)
+    }
+    catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      Log.error(`[locale-map] ${label}失败：${message}（root=${root} localesPaths=${JSON.stringify(Global.localesPaths)} localePath=${localePath}）`)
+      window.showErrorMessage(`${label}失败：${message}`)
+    }
+    return
+  }
+
   const scan = collectProjectLocales(root, localePath)
   const supportedCount = Config.getTranslateEngineLocales(engine).length
   const { issue } = detectLocaleIssue(root, localePath, scan)
   const origin = inspectLocaleMapOrigin()
-  const suspicious = findSuspiciousLocales(scan)
   const whitelist = Config.localeFiles
+  // 白名单下不做「可疑语言」推断（见上）
+  const suspicious = whitelist.length ? [] : findSuspiciousLocales(scan)
 
   // 连语言文件目录都没配（或配的目录全都不存在）时，先解决这个再谈映射
   if (issue === 'no-path') {
@@ -1435,16 +1551,9 @@ async function run(): Promise<void> {
     case REFRESH:
       await refreshEngineLocales(engine)
       break
-    case APPLY: {
-      const result = await applyRecommendedLocaleMap(engine, root, localePath)
-      const parts = [`已写入 ${result.written} 条映射`]
-      if (result.fixedTagSystem)
-        parts.push('languageTagSystem 已改为 none')
-      if (result.unresolved.length)
-        parts.push(`未识别：${result.unresolved.join('、')}（需手动绑定）`)
-      window.showInformationMessage(parts.join('；'))
+    case APPLY:
+      await applyAndReport(engine, root, localePath)
       break
-    }
     case DIAGNOSE:
       await diagnose(engine, root, localePath)
       break
@@ -1457,6 +1566,10 @@ async function run(): Promise<void> {
 const m: ExtensionModule = () => {
   return [
     commands.registerCommand(Commands.config_translate_locales, () => run()),
+    // 设置页链接专用的单动作入口（在 commandPalette 里以 when:false 隐藏）
+    commands.registerCommand(Commands.locale_map_apply, () => run(APPLY)),
+    commands.registerCommand(Commands.locale_map_bind, () => run(BIND)),
+    commands.registerCommand(Commands.locale_map_diagnose, () => run(DIAGNOSE)),
     commands.registerCommand(Commands.open_workspace_settings, () => openWorkspaceSettings()),
     commands.registerCommand(Commands.select_locale_files, () => selectLocaleFiles(Global.rootpath, Global.localesPaths?.[0])),
     commands.registerCommand(Commands.create_locale_file, () => createLocaleFile()),

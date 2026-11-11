@@ -101,7 +101,7 @@ export function registerReloadOnUpdate(ctx: ExtensionContext) {
 
       Log.info(`🔄 检测到新版本 ${version}（当前 ${currentVersion}），清单有变化，需要整窗重载`)
       const choice = await window.showInformationMessage(
-        `i18n Ally 已更新到 ${version}（涉及命令/菜单/配置变更，需重载窗口）`,
+        `i18n CN 已更新到 ${version}（涉及命令/菜单/配置变更，需重载窗口）`,
         '立即重载窗口',
         '稍后',
       )

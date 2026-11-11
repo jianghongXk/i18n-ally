@@ -455,6 +455,7 @@ export class LocaleLoader extends Loader {
     // 配了 localeFiles 白名单就只认列出的文件；没配时继续走 pathMatcher。
     // 这条必须放在正则匹配之后：否则目录里每张图片、每个字体文件都要打一条日志
     // （Vue.Web 一次加载能刷出几百行），也很难看出到底哪些才是被白名单挡掉的候选语言文件。
+    const whitelistActive = Config.localeFiles.length > 0
     if (!Config.isExplicitLocaleFile(this.rootpath, fullpath)) {
       Log.info(`🚫 Not in localeFiles whitelist: ${relativePath}`, 1)
       return
@@ -469,14 +470,22 @@ export class LocaleLoader extends Loader {
     // 没配白名单时再做一次形态校验，避免侧边栏冒出 COMMWORD 这种「伪语言」。
     // locale 为空是 {locale?} 的正常情况（回落源语言），不拦。
     // 白名单是用户逐个勾选后的显式决定，此时完全以白名单为准，不再做启发式判断。
-    if (locale && !Config.localeFiles.length && !isPlausibleLocale(locale)) {
+    if (locale && !whitelistActive && !isPlausibleLocale(locale)) {
       Log.info(`🚫 "${relativePath}" 解析出的 "${locale}" 不像语言码，已跳过；可用 i18n-ally.localeFiles 显式指定`, 1)
       return
     }
-    if (locale)
-      locale = Config.canonicalLocale(Config.normalizeLocale(locale, ''))
-    else
+    if (locale) {
+      // 白名单命中 = 「这门语言我认了」，文件名就是语言标识，不能再被 tagSystem 的形态规则挡回去。
+      // legacy 的 normalize 要求主标签正好两位，chs / can / japanese 一律返回空串（fallback 是 ''），
+      // 于是「加入白名单」这个动作此前对这类文件名完全没有效果，文件还是会静默消失。
+      // 白名单里只做大小写规范化（chs → chs、zh-cn → zh-CN），不做语言码合法性归一。
+      locale = whitelistActive
+        ? Config.canonicalLocale(locale)
+        : Config.canonicalLocale(Config.normalizeLocale(locale, ''))
+    }
+    else {
       locale = this.sourceLocaleInProject
+    }
 
     if (!locale)
       return

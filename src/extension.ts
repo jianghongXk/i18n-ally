@@ -3,6 +3,7 @@ import { flatten } from 'lodash'
 import { version } from '../package.json'
 import { Global, Config, KeyDetector, CurrentFile } from '~/core'
 import { registerReloadOnUpdate } from '~/core/ReloadOnUpdate'
+import { guardLegacyExtension } from '~/core/LegacyConflict'
 import { ensureBackendAuthConfigured } from '~/core/BizSync'
 import commandsModules, { Commands } from '~/commands'
 import { maybePromptSetup } from '~/commands/setupWizard'
@@ -18,6 +19,11 @@ export async function activate(ctx: ExtensionContext) {
 
   i18n.init(ctx.extensionPath)
   KeyDetector.init(ctx)
+
+  // 旧版 lokalise.i18n-ally 仍在时，命令 id 会撞车（后者注册即抛错、activate 中断）。
+  // 必须赶在 Global.init / 任何 registerCommand 之前拦，命中就不继续激活。
+  if (await guardLegacyExtension())
+    return
 
   // activate the extension
   await Global.init(ctx)

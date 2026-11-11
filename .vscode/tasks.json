@@ -13,7 +13,7 @@
       "problemMatcher": {
         "fileLocation": "relative",
         "pattern": {
-          "regexp": "_______",
+          "regexp": "^$",
           "file": 1,
           "location": 2,
           "severity": 3,
@@ -22,8 +22,8 @@
         },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "Compilation  starting...",
-          "endsPattern": "Compilation  finished"
+          "beginsPattern": "^esbuild ",
+          "endsPattern": "watching src/"
         }
       },
       "group": "build"

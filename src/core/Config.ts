@@ -646,7 +646,7 @@ export class Config {
       type: (this.getConfig<string>('syncBackend.type') ?? '5').trim(),
       tokenHeader: (this.getConfig<string>('syncBackend.tokenHeader') ?? 'Authorization').trim(),
       token: (this.getConfig<string>('syncBackend.token') ?? '').trim(),
-      syncEndpoint: (this.getConfig<string>('syncBackend.syncEndpoint') ?? 'http://localhost:9006/locales-sync').trim(),
+      syncEndpoint: (this.getConfig<string>('syncBackend.syncEndpoint') ?? '').trim(),
       translateAfterSync: this.getConfig<boolean>('syncBackend.translateAfterSync') ?? true,
     }
   }
@@ -700,11 +700,22 @@ export class Config {
     return this.getConfig<any>('parserOptions') ?? {}
   }
 
-  static get localeCountryMap() {
-    return Object.assign(
-      DEFAULT_LOCALE_COUNTRY_MAP,
-      this.getConfig<Record<string, string>>('localeCountryMap'),
-    )
+  /**
+   * 语言 → 旗帜名（res/flags/*.svg 的文件名，如 en → us、es-ca → es-ca）。
+   * 值必须是合法旗帜名，写成语言显示名（en: "English"）会让该语言显示成「?」；
+   * 合法性由 tagSystem 逐级校验并回退到内置默认，这里只负责合并 + key 归一化。
+   * 注意别像以前那样 Object.assign(DEFAULT, ...) —— 那会把用户配置写进常量本身，
+   * 切换工作区后旧值还留着。
+   */
+  static get localeCountryMap(): Record<string, string> {
+    const user = this.getConfig<Record<string, string>>('localeCountryMap') || {}
+    const merged: Record<string, string> = { ...DEFAULT_LOCALE_COUNTRY_MAP }
+    for (const [key, value] of Object.entries(user)) {
+      if (typeof value !== 'string' || !value.trim())
+        continue
+      merged[key.trim().toLowerCase()] = value.trim()
+    }
+    return merged
   }
 
   static get targetPickingStrategy(): TargetPickingStrategy {

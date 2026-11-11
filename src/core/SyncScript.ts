@@ -21,24 +21,35 @@ interface SyncLocalesResponse {
  */
 async function resolveEndpoint(): Promise<string | null> {
   const configured = Config.syncBackend.syncEndpoint
-  if (!configured)
-    return null
 
+  // 端口可能不是 9006（被占时 vite 会自动换），.dev-state.json 里的端口也可能过期
+  // （多个 dev 实例、或服务已经停了）。所以按顺序探测，谁先应答用谁。
+  let reportedPort: number | undefined
   const folder = workspace.workspaceFolders?.[0]?.uri
-  const withPort = (port: number) => configured.replace(/:\d+(\/|$)/, `:${port}$1`)
-
-  const candidates: string[] = [configured]
   if (folder) {
     try {
       const raw = JSON.parse(Buffer.from(await workspace.fs.readFile(Uri.joinPath(folder, '.vscePackage', '.dev-state.json'))).toString('utf8'))
       const port = raw?.devServer?.port
       if (typeof port === 'number')
-        candidates.unshift(withPort(port))
+        reportedPort = port
     }
     catch {
       // 没有端口文件就只探测配置值
     }
   }
+
+  // 没配地址时，用 dev server 上报的端口拼一个默认值——这样公开的清单里不必带着
+  // 内部开发地址（localhost:9006），而团队项目靠 .dev-state.json 仍能零配置工作。
+  // 端口也读不到就没法同步，返回 null 由调用方跳过。
+  const base = configured || (reportedPort ? `http://localhost:${reportedPort}/locales-sync` : '')
+  if (!base)
+    return null
+
+  const withPort = (port: number) => base.replace(/:\d+(\/|$)/, `:${port}$1`)
+
+  const candidates: string[] = [base]
+  if (reportedPort)
+    candidates.unshift(withPort(reportedPort))
   // 常见端口兜底（vite 端口被占会自动 +1）
   for (const port of [9006, 9007, 9008])
     candidates.push(withPort(port))

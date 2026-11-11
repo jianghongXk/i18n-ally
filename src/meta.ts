@@ -1,6 +1,6 @@
 export const EXT_NAMESPACE = 'i18n-ally'
-export const EXT_ID = 'lokalise.i18n-ally'
-export const EXT_NAME = 'i18n Ally'
+export const EXT_ID = 'jianghongxk.i18n-cn'
+export const EXT_NAME = 'i18n CN'
 export const EXT_EDITOR_ID = 'i18n-ally-editor'
 export const EXT_REVIEW_ID = 'i18n-ally-review'
 

@@ -307,19 +307,35 @@ export class Global {
 
   private static async updateRootPath() {
     const editor = window.activeTextEditor
+    const folders = workspace.workspaceFolders
     let rootpath = ''
 
-    if (!editor || !workspace.workspaceFolders || workspace.workspaceFolders.length === 0)
+    if (!folders || folders.length === 0)
       return
 
-    const resource = editor.document.uri
-    if (resource.scheme === 'file') {
-      const folder = workspace.getWorkspaceFolder(resource)
-      if (folder) {
-        this._currentWorkspaceFolder = folder
-        rootpath = folder.uri.fsPath
+    // 没有 activeTextEditor 不等于没有项目：设置页、webview、欢迎页在前台时都可能没有编辑器。
+    // 原来这里直接 return，于是 _rootpath 一直 undefined、loader 不加载，
+    // 侧边栏空白、命令行工具扫到 0 个语言文件（重启后尤其容易复现）。
+    // 单文件夹工作区没有歧义，直接用它。
+    if (!editor) {
+      if (folders.length === 1) {
+        this._currentWorkspaceFolder = folders[0]
+        rootpath = folders[0].uri.fsPath
       }
     }
+    else {
+      const resource = editor.document.uri
+      if (resource.scheme === 'file') {
+        const folder = workspace.getWorkspaceFolder(resource)
+        if (folder) {
+          this._currentWorkspaceFolder = folder
+          rootpath = folder.uri.fsPath
+        }
+      }
+    }
+
+    if (!rootpath && folders.length === 1)
+      rootpath = folders[0].uri.fsPath
 
     if (!rootpath && workspace.rootPath)
       rootpath = workspace.rootPath

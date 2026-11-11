@@ -1,9 +1,9 @@
 {
-  "publisher": "lokalise",
-  "name": "i18n-ally",
-  "version": "2.17.0",
-  "displayName": "i18n Ally Support Regex",
-  "description": "🌍 All in one i18n extension for VS Code with regex support",
+  "publisher": "jianghongxk",
+  "name": "i18n-cn",
+  "version": "1.0.0",
+  "displayName": "i18n CN",
+  "description": "%description%",
   "keywords": [
     "vue",
     "vue-i18n",
@@ -13,33 +13,27 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/lokalise/i18n-ally"
+    "url": "https://github.com/jianghongXk/i18n-ally"
   },
   "main": "./dist/extension",
   "scripts": {
-    "release": "nr release:patch",
-    "release:minor": "standard-version --release-as minor && git push --follow-tags",
-    "release:patch": "standard-version --release-as patch && git push --follow-tags",
-    "gh:release": "conventional-github-releaser -p angular",
-    "build": "rimraf dist && nr i18n:build && nr main:build && nr editor:build && esno scripts/post-build.ts",
-    "dev": "run-p *:dev",
-    "main:build": "cross-env I18N_ALLY_ENV=production webpack --mode development",
-    "main:build:fast": "cross-env I18N_ALLY_ENV=production I18N_ALLY_FAST=1 webpack --mode development",
-    "main:dev": "cross-env I18N_ALLY_ENV=development webpack --mode development --watch --info-verbosity verbose",
-    "editor:build": "parcel build src/webview/src/index.html --out-dir dist/editor --no-minify",
-    "editor:dev": "nodemon -w src/webview/src -e js,ts,vue,html --exec \"nr editor:build\"",
-    "i18n:build": "esno scripts/build-i18n.ts",
-    "i18n:dev": "nodemon -w ./locales -e json --exec \"nr i18n:build\"",
-    "flags:build": "esno scripts/build-flags.ts",
+    "build": "node scripts/build-esbuild.cjs",
+    "dev": "node scripts/build-esbuild.cjs --watch",
+    "build:deasync": "node scripts/build-deasync.cjs",
+    "build:webview": "pnpm build:deasync && cross-env INLINE_ASSETS=true parcel build src/webview/src/index.html --out-dir dist/editor --no-minify",
+    "vsix": "node scripts/bump-daily.cjs && node scripts/changelog-archive.cjs && pnpm build && node scripts/pack-vsix.cjs",
+    "vsix:release": "node scripts/release.cjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint --ext .ts,.js,.vue .",
-    "lint:fix": "nr lint -- --fix",
-    "test": "nr test:unit",
+    "lint:fix": "pnpm lint --fix",
+    "test": "npm run test:unit",
     "test:e2e": "rimraf test/e2e-out && tsc -p test/e2e && cross-env I18N_ALLY_ENV=test node ./test/e2e-out/index.js",
-    "test:e2e:update": "cross-env CHAI_JEST_SNAPSHOT_UPDATE_ALL=true yarn test:e2e",
+    "test:e2e:update": "cross-env CHAI_JEST_SNAPSHOT_UPDATE_ALL=true pnpm test:e2e",
     "test:e2e:dev": "rimraf test/e2e-out && tsc -p test/e2e --watch",
     "test:fixture": "rimraf test/fixture-scripts-out && tsc -p test/fixture-scripts && cross-env I18N_ALLY_ENV=test node ./test/fixture-scripts-out/index.js",
     "test:unit": "cross-env I18N_ALLY_ENV=test ts-mocha -p test/unit/tsconfig.json --file test/unit/setup.ts test/unit/**/*.test.ts test/unit/**/**/*.test.ts",
-    "test:update": "cross-env CHAI_JEST_SNAPSHOT_UPDATE_ALL=true nr test:unit"
+    "test:update": "cross-env CHAI_JEST_SNAPSHOT_UPDATE_ALL=true pnpm test:unit",
+    "flags:build": "esno scripts/build-flags.ts"
   },
   "dependencies": {
     "@amplitude/analytics-node": "^1.3.3",
@@ -99,20 +93,21 @@
     "@types/string-similarity": "^4.0.0",
     "@types/uuid": "^8.3.1",
     "@types/vscode": "^1.77.0",
-    "@types/webpack": "^4.41.26",
     "@vscode/test-electron": "^2.3.0",
     "axios": "^0.21.1",
     "blueimp-md5": "^2.18.0",
     "chai": "^4.3.4",
     "chai-jest-snapshot": "^2.0.0",
     "chalk": "^4.1.2",
-    "conventional-github-releaser": "^3.1.5",
     "cross-env": "^7.0.3",
     "diff": "^5.0.0",
+    "esbuild": "^0.12.20",
     "eslint": "^7.32.0",
     "esno": "^0.9.1",
+    "fast-glob": "^3.2.7",
     "fs-extra": "^10.0.0",
     "mocha": "^8.4.0",
+    "node-gyp": "^10.0.0",
     "nodemon": "^2.0.12",
     "npm-run-all": "^4.1.5",
     "parcel-bundler": "^1.12.5",
@@ -121,21 +116,14 @@
     "php-parser": "^3.0.3",
     "pug": "^3.0.3",
     "rimraf": "^3.0.2",
-    "standard-version": "^9.3.1",
     "stylus": "^0.54.8",
-    "ts-loader": "^8.1.0",
     "ts-mocha": "^8.0.0",
-    "tsconfig-paths-webpack-plugin": "^3.5.1",
-    "unplugin": "^0.0.5",
     "uuid": "^8.3.2",
-    "vsce": "^1.96.1",
     "vue": "^2.6.14",
     "vue-i18n": "^8.22.4",
     "vue-material-design-icons": "^4.12.1",
     "vuex": "^3.6.2",
-    "webpack": "^4.47.0",
-    "webpack-cli": "^3.3.12",
-    "webpack-filter-warnings-plugin": "^1.2.1"
+    "yazl": "^2.2.2"
   },
   "engines": {
     "vscode": "^1.77.3"
@@ -169,8 +157,8 @@
     "onLanguage:svelte"
   ],
   "icon": "res/logo.png",
-  "homepage": "https://github.com/lokalise/i18n-ally",
-  "bugs": "https://github.com/lokalise/i18n-ally/issues",
+  "homepage": "https://github.com/jianghongXk/i18n-ally",
+  "bugs": "https://github.com/jianghongXk/i18n-ally/issues",
   "contributes": {
     "commands": [
       {
@@ -267,9 +255,14 @@
         "title": "%command.extract.hard-strings-batch%"
       },
       {
+        "command": "i18n-ally.extract-hard-strings-translate",
+        "category": "%extname%",
+        "title": "%command.extract.hard-strings-translate%"
+      },
+      {
         "command": "i18n-ally.detect_hard_strings",
         "category": "%extname%",
-        "title": "Detect hard-coded strings in current file (experimental)"
+        "title": "%command.detect_hard_strings%"
       },
       {
         "command": "i18n-ally.open-url",
@@ -402,12 +395,6 @@
         "title": "%command.go_to_prev_usage%"
       },
       {
-        "command": "i18n-ally.open-docs-hard-string",
-        "category": "%extname%",
-        "title": "%command.show_docs%",
-        "icon": "$(question)"
-      },
-      {
         "command": "i18n-ally.extract-disable-auto-detect",
         "category": "%extname%",
         "title": "%command.extract.disable-auto-detect%"
@@ -433,9 +420,29 @@
         "title": "初始化配置引导（语言文件 / 翻译引擎 / 百度密钥）"
       },
       {
+        "command": "i18n-ally.show-changelog",
+        "category": "%extname%",
+        "title": "%command.show_changelog%"
+      },
+      {
         "command": "i18n-ally.config-translate-locales",
         "category": "%extname%",
         "title": "配置翻译语言映射（语言文件 ↔ 翻译引擎）"
+      },
+      {
+        "command": "i18n-ally.locale-map.apply",
+        "category": "%extname%",
+        "title": "翻译语言映射：可视化配置本项目映射"
+      },
+      {
+        "command": "i18n-ally.locale-map.bind",
+        "category": "%extname%",
+        "title": "翻译语言映射：手动绑定单个语言"
+      },
+      {
+        "command": "i18n-ally.locale-map.diagnose",
+        "category": "%extname%",
+        "title": "翻译语言映射：诊断当前配置"
       },
       {
         "command": "i18n-ally.open-workspace-settings",
@@ -450,7 +457,14 @@
       {
         "command": "i18n-ally.create-locale-file",
         "category": "%extname%",
-        "title": "从翻译引擎语言清单创建语言文件"
+        "title": "从翻译引擎语言清单创建语言文件",
+        "icon": "$(add)"
+      },
+      {
+        "command": "i18n-ally.delete-locale-file",
+        "category": "%extname%",
+        "title": "删除该语言文件",
+        "icon": "$(trash)"
       }
     ],
     "keybindings": [
@@ -555,10 +569,6 @@
           "when": "false"
         },
         {
-          "command": "i18n-ally.edit-key",
-          "when": "false"
-        },
-        {
           "command": "i18n-ally.duplicate-key",
           "when": "false"
         },
@@ -572,6 +582,18 @@
         },
         {
           "command": "i18n-ally.extract-enable-auto-detect",
+          "when": "false"
+        },
+        {
+          "command": "i18n-ally.locale-map.apply",
+          "when": "false"
+        },
+        {
+          "command": "i18n-ally.locale-map.bind",
+          "when": "false"
+        },
+        {
+          "command": "i18n-ally.locale-map.diagnose",
           "when": "false"
         }
       ],
@@ -655,14 +677,14 @@
           "group": "inline@1"
         },
         {
+          "command": "i18n-ally.delete-locale-file",
+          "when": "view =~ /i18n-ally-locales-progress/ && viewItem =~ /locale-root/",
+          "group": "inline@9"
+        },
+        {
           "command": "i18n-ally.mark-key-as-in-use",
           "when": "view =~ /i18n-ally-locales/ && viewItem =~ /key_idle/",
           "group": "i18nally@1"
-        },
-        {
-          "command": "i18n-ally.open-docs-hard-string",
-          "when": "viewItem =~ /i18n-ally-hard-string-root/",
-          "group": "inline@1"
         },
         {
           "command": "i18n-ally.extract-text",
@@ -705,12 +727,22 @@
           "command": "i18n-ally.translate-all-missing",
           "group": "navigation",
           "when": "view =~ /i18n-ally-locales-progress/"
+        },
+        {
+          "command": "i18n-ally.create-locale-file",
+          "group": "navigation@1",
+          "when": "view =~ /i18n-ally-locales-progress/"
         }
       ],
       "explorer/context": [
         {
           "command": "i18n-ally.extract-hard-strings-batch",
           "group": "1_i18nally@1"
+        },
+        {
+          "command": "i18n-ally.extract-hard-strings-translate",
+          "when": "explorerResourceIsFolder",
+          "group": "1_i18nally@2"
         }
       ],
       "comments/commentThread/title": [
@@ -796,863 +828,1748 @@
         }
       ]
     },
-    "configuration": {
-      "type": "object",
-      "title": "%extname%",
-      "properties": {
-        "i18n-ally.disabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.disabled%"
-        },
-        "i18n-ally.autoDetection": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.auto_detection%"
-        },
-        "i18n-ally.localesPaths": {
-          "type": [
-            "string",
-            "array"
-          ],
-          "items": {
-            "type": "string"
+    "configuration": [
+      {
+        "title": "%config.section.basic%",
+        "order": 1,
+        "properties": {
+          "i18n-ally.disabled": {
+            "order": 100,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.disabled%"
           },
-          "description": "%config.locales_paths%",
-          "scope": "resource"
-        },
-        "i18n-ally.localeFiles": {
-          "type": "array",
-          "items": {
-            "type": "string"
+          "i18n-ally.autoDetection": {
+            "order": 101,
+            "type": "boolean",
+            "default": true,
+            "description": "%config.auto_detection%"
           },
-          "default": [],
-          "scope": "resource",
-          "markdownDescription": "%config.locale_files%"
-        },
-        "i18n-ally.encoding": {
-          "type": "string",
-          "default": "utf-8",
-          "description": "%config.encoding%"
-        },
-        "i18n-ally.sourceLanguage": {
-          "type": "string",
-          "description": "%config.source_language%"
-        },
-        "i18n-ally.displayLanguage": {
-          "type": "string",
-          "description": "%config.display_language%"
-        },
-        "i18n-ally.ignoredLocales": {
-          "type": "array",
-          "description": "%config.ignored_locales%"
-        },
-        "i18n-ally.keystyle": {
-          "type": "string",
-          "enum": [
-            "auto",
-            "nested",
-            "flat"
-          ],
-          "enumDescriptions": [
-            "%config.keystyle.auto%",
-            "%config.keystyle.nested%",
-            "%config.keystyle.flat%"
-          ],
-          "description": "%config.keystyle%"
-        },
-        "i18n-ally.dirStructure": {
-          "type": "string",
-          "enum": [
-            "auto",
-            "file",
-            "dir"
-          ],
-          "enumDescriptions": [
-            "%config.dir_structure.auto%",
-            "%config.dir_structure.file%",
-            "%config.dir_structure.dir%"
-          ],
-          "description": "%config.dir_structure%"
-        },
-        "i18n-ally.annotations": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.annotations%"
-        },
-        "i18n-ally.annotationInPlace": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.annotation_in_place%"
-        },
-        "i18n-ally.annotationMaxLength": {
-          "type": "number",
-          "default": 40,
-          "description": "%config.annotation_max_length%"
-        },
-        "i18n-ally.annotationDelimiter": {
-          "type": "string",
-          "default": "·",
-          "description": "%config.annotation_delimiter%"
-        },
-        "i18n-ally.includeSubfolders": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.include_subfolders%"
-        },
-        "i18n-ally.fullReloadOnChanged": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.full_reload_on_changed%"
-        },
-        "i18n-ally.showFlags": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.show_flags%"
-        },
-        "i18n-ally.enabledFrameworks": {
-          "type": "array",
-          "items": {
+          "i18n-ally.localesPaths": {
+            "order": 102,
+            "type": [
+              "string",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "markdownDescription": "%config.locales_paths%",
+            "scope": "resource"
+          },
+          "i18n-ally.localeFiles": {
+            "order": 103,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "scope": "resource",
+            "markdownDescription": "%config.locale_files%"
+          },
+          "i18n-ally.encoding": {
+            "order": 104,
+            "type": "string",
+            "default": "utf-8",
+            "description": "%config.encoding%"
+          },
+          "i18n-ally.includeSubfolders": {
+            "order": 105,
+            "type": "boolean",
+            "default": true,
+            "description": "%config.include_subfolders%"
+          },
+          "i18n-ally.ignoreFiles": {
+            "order": 106,
+            "type": "array",
+            "item": {
+              "type": "string"
+            },
+            "description": "%config.ignore_files%"
+          },
+          "i18n-ally.ignoredLocales": {
+            "order": 107,
+            "type": "array",
+            "description": "%config.ignored_locales%"
+          },
+          "i18n-ally.fullReloadOnChanged": {
+            "order": 108,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.full_reload_on_changed%"
+          },
+          "i18n-ally.sourceLanguage": {
+            "order": 200,
+            "type": "string",
+            "description": "%config.source_language%"
+          },
+          "i18n-ally.displayLanguage": {
+            "order": 201,
+            "type": "string",
+            "description": "%config.display_language%"
+          },
+          "i18n-ally.showFlags": {
+            "order": 202,
+            "type": "boolean",
+            "default": true,
+            "description": "%config.show_flags%"
+          },
+          "i18n-ally.languageTagSystem": {
+            "order": 203,
             "type": "string",
             "enum": [
-              "vue",
-              "react",
-              "vscode",
-              "ngx-translate",
-              "i18next",
-              "react-i18next",
-              "i18next-shopify",
-              "i18n-tag",
-              "flutter",
-              "vue-sfc",
-              "ember",
-              "chrome-ext",
-              "ruby-rails",
-              "custom",
-              "laravel",
-              "transloco",
-              "svelte",
-              "globalize",
-              "ui5",
-              "next-translate",
-              "php-gettext",
-              "general",
-              "lingui",
-              "jekyll",
-              "fluent-vue",
-              "fluent-vue-sfc",
-              "next-intl",
-              "next-international"
+              "bcp47",
+              "legacy",
+              "none"
             ],
             "enumDescriptions": [
-              "%config.enabled_frameworks.vue%",
-              "%config.enabled_frameworks.react%",
-              "%config.enabled_frameworks.vscode%",
-              "%config.enabled_frameworks.ngx-translate%",
-              "%config.enabled_frameworks.i18next%",
-              "%config.enabled_frameworks.react-i18next%",
-              "%config.enabled_frameworks.i18next-shopify%",
-              "%config.enabled_frameworks.i18n-tag%",
-              "%config.enabled_frameworks.flutter%",
-              "%config.enabled_frameworks.vue-sfc%",
-              "%config.enabled_frameworks.ember%",
-              "%config.enabled_frameworks.chrome-ext%",
-              "%config.enabled_frameworks.ruby-rails%",
-              "%config.enabled_frameworks.custom%",
-              "%config.enabled_frameworks.laravel%",
-              "%config.enabled_frameworks.transloco%",
-              "%config.enabled_frameworks.svelte%",
-              "%config.enabled_frameworks.globalize%",
-              "%config.enabled_frameworks.ui5%",
-              "%config.enabled_frameworks.next-translate%",
-              "%config.enabled_frameworks.php-gettext%",
-              "%config.enabled_frameworks.general%",
-              "%config.enabled_frameworks.lingui%",
-              "%config.enabled_frameworks.jekyll%",
-              "%config.enabled_frameworks.fluent-vue%",
-              "%config.enabled_frameworks.fluent-vue-sfc%",
-              "%config.enabled_frameworks.next-intl%",
-              "%config.enabled_frameworks.next-international%"
-            ]
-          },
-          "description": "%config.enabled_frameworks%"
-        },
-        "i18n-ally.enabledParsers": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "js",
-              "ts",
-              "json",
-              "json5",
-              "yaml",
-              "ini",
-              "po",
-              "php",
-              "properties",
-              "ftl"
+              "%config.language_tag_system.bcp47%",
+              "%config.language_tag_system.legacy%",
+              "%config.language_tag_system.none%"
             ],
-            "enumDescriptions": [
-              "%config.enabled_parsers.js%",
-              "%config.enabled_parsers.ts%",
-              "%config.enabled_parsers.json%",
-              "%config.enabled_parsers.json5%",
-              "%config.enabled_parsers.yaml%",
-              "%config.enabled_parsers.ini%",
-              "%config.enabled_parsers.po%",
-              "%config.enabled_parsers.php%",
-              "%config.enabled_parsers.properties%",
-              "%config.enabled_parsers.ftl%"
-            ]
+            "default": "bcp47",
+            "description": "%config.language_tag_system%"
           },
-          "description": "%config.enabled_parsers%"
-        },
-        "i18n-ally.keysInUse": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "%config.keys_in_use%"
-        },
-        "i18n-ally.sortKeys": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.sort_keys%"
-        },
-        "i18n-ally.sortCompare": {
-          "type": "string",
-          "enum": [
-            "binary",
-            "locale"
-          ],
-          "enumDescriptions": [
-            "%config.sort_compare.binary%",
-            "%config.sort_compare.locale%"
-          ],
-          "default": "binary",
-          "description": "%config.sort_compare%"
-        },
-        "i18n-ally.sortLocale": {
-          "type": "string",
-          "description": "%config.sort_locale%"
-        },
-        "i18n-ally.preferredDelimiter": {
-          "type": "string",
-          "default": "-",
-          "description": "%config.preferred_delimiter%"
-        },
-        "i18n-ally.readonly": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.readonly%"
-        },
-        "i18n-ally.keepFulfilled": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.keep_fulfill%"
-        },
-        "i18n-ally.localeCountryMap": {
-          "type": "object",
-          "default": {},
-          "description": "%config.locale_country_map%"
-        },
-        "i18n-ally.indent": {
-          "type": "number",
-          "default": 2,
-          "description": "%config.indent%"
-        },
-        "i18n-ally.disablePathParsing": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.disable_path_parsing%"
-        },
-        "i18n-ally.tabStyle": {
-          "type": "string",
-          "default": "space",
-          "enum": [
-            "space",
-            "tab"
-          ],
-          "enumDescriptions": [
-            "%config.tab_style.space%",
-            "%config.tab_style.tab%"
-          ],
-          "description": "%config.tab_style%"
-        },
-        "i18n-ally.namespace": {
-          "type": "boolean",
-          "description": "%config.namespace%"
-        },
-        "i18n-ally.pathMatcher": {
-          "type": "string",
-          "description": "%config.path_matcher%"
-        },
-        "i18n-ally.languageTagSystem": {
-          "type": "string",
-          "enum": [
-            "bcp47",
-            "legacy",
-            "none"
-          ],
-          "enumDescriptions": [
-            "%config.language_tag_system.bcp47%",
-            "%config.language_tag_system.legacy%",
-            "%config.language_tag_system.none%"
-          ],
-          "default": "bcp47",
-          "description": "%config.language_tag_system%"
-        },
-        "i18n-ally.ignoreFiles": {
-          "type": "array",
-          "item": {
-            "type": "string"
-          },
-          "description": "%config.ignore_files%"
-        },
-        "i18n-ally.theme.annotation": {
-          "type": "string",
-          "description": "%config.theme_annotation%",
-          "default": "rgba(153, 153, 153, .8)"
-        },
-        "i18n-ally.theme.annotationMissing": {
-          "type": "string",
-          "description": "%config.theme_annotation_missing%",
-          "default": "rgba(153, 153, 153, .3)"
-        },
-        "i18n-ally.theme.annotationBorder": {
-          "type": "string",
-          "description": "%config.theme_annotation_border%",
-          "default": "rgba(153, 153, 153, .2)"
-        },
-        "i18n-ally.theme.annotationMissingBorder": {
-          "type": "string",
-          "description": "%config.theme_annotation_missing_border%",
-          "default": "rgba(153, 153, 153, .2)"
-        },
-        "i18n-ally.regex.key": {
-          "type": "string",
-          "description": "%config.regex_key%"
-        },
-        "i18n-ally.regex.usageMatch": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "%config.regex_usage_match%"
-        },
-        "i18n-ally.regex.usageMatchAppend": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "%config.regex_usage_match_append%"
-        },
-        "i18n-ally.refactor.templates": {
-          "type": "array",
-          "items": {
+          "i18n-ally.localeCountryMap": {
+            "order": 204,
             "type": "object",
+            "default": {},
+            "description": "%config.locale_country_map%",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "ad",
+                "ae",
+                "af",
+                "ag",
+                "ai",
+                "al",
+                "am",
+                "an",
+                "ao",
+                "aq",
+                "ar",
+                "as",
+                "at",
+                "au",
+                "aw",
+                "ax",
+                "az",
+                "ba",
+                "bb",
+                "bd",
+                "be",
+                "bf",
+                "bg",
+                "bh",
+                "bi",
+                "bj",
+                "bl",
+                "bm",
+                "bn",
+                "bo",
+                "bq",
+                "br",
+                "bs",
+                "bt",
+                "bv",
+                "bw",
+                "by",
+                "bz",
+                "ca",
+                "cc",
+                "cd",
+                "cf",
+                "cg",
+                "ch",
+                "ci",
+                "ck",
+                "cl",
+                "cm",
+                "cn",
+                "co",
+                "cr",
+                "cu",
+                "cv",
+                "cw",
+                "cx",
+                "cy",
+                "cz",
+                "de",
+                "dj",
+                "dk",
+                "dm",
+                "do",
+                "dz",
+                "ec",
+                "ee",
+                "eg",
+                "eh",
+                "eo",
+                "er",
+                "es",
+                "es-ca",
+                "es-eu",
+                "es-gl",
+                "et",
+                "eu",
+                "fi",
+                "fj",
+                "fk",
+                "fm",
+                "fo",
+                "fr",
+                "ga",
+                "gb",
+                "gb-eng",
+                "gb-nir",
+                "gb-sct",
+                "gb-wls",
+                "gd",
+                "ge",
+                "gf",
+                "gg",
+                "gh",
+                "gi",
+                "gl",
+                "gm",
+                "gn",
+                "gp",
+                "gq",
+                "gr",
+                "gs",
+                "gt",
+                "gu",
+                "gw",
+                "gy",
+                "he",
+                "hi",
+                "hk",
+                "hm",
+                "hn",
+                "hr",
+                "ht",
+                "hu",
+                "id",
+                "ie",
+                "il",
+                "im",
+                "in",
+                "io",
+                "iq",
+                "ir",
+                "is",
+                "it",
+                "ja",
+                "je",
+                "jm",
+                "jo",
+                "jp",
+                "ke",
+                "kg",
+                "kh",
+                "ki",
+                "km",
+                "kn",
+                "ko",
+                "kp",
+                "kw",
+                "ky",
+                "kz",
+                "la",
+                "lb",
+                "lc",
+                "li",
+                "lk",
+                "lr",
+                "ls",
+                "lt",
+                "lu",
+                "lv",
+                "ly",
+                "ma",
+                "mc",
+                "md",
+                "me",
+                "mf",
+                "mg",
+                "mh",
+                "mk",
+                "ml",
+                "mm",
+                "mn",
+                "mo",
+                "mp",
+                "mq",
+                "mr",
+                "ms",
+                "mt",
+                "mu",
+                "mv",
+                "mw",
+                "mx",
+                "my",
+                "mz",
+                "na",
+                "nc",
+                "ne",
+                "nf",
+                "ng",
+                "ni",
+                "nl",
+                "no",
+                "np",
+                "nr",
+                "nu",
+                "nz",
+                "om",
+                "pa",
+                "pe",
+                "pf",
+                "pg",
+                "ph",
+                "pk",
+                "pl",
+                "pm",
+                "pn",
+                "pr",
+                "ps",
+                "pt",
+                "pw",
+                "py",
+                "qa",
+                "re",
+                "ro",
+                "rs",
+                "ru",
+                "rw",
+                "sa",
+                "sb",
+                "sc",
+                "sd",
+                "se",
+                "sg",
+                "sh",
+                "si",
+                "sj",
+                "sk",
+                "sl",
+                "sm",
+                "sn",
+                "so",
+                "sr",
+                "ss",
+                "st",
+                "sv",
+                "sx",
+                "sy",
+                "sz",
+                "tc",
+                "td",
+                "tf",
+                "tg",
+                "th",
+                "tj",
+                "tk",
+                "tl",
+                "tm",
+                "tn",
+                "to",
+                "tr",
+                "tt",
+                "tv",
+                "tw",
+                "tz",
+                "ua",
+                "ug",
+                "uk",
+                "um",
+                "unknown",
+                "us",
+                "uy",
+                "uz",
+                "va",
+                "vc",
+                "ve",
+                "vg",
+                "vi",
+                "vn",
+                "vu",
+                "wf",
+                "ws",
+                "xk",
+                "ye",
+                "yt",
+                "za",
+                "zm",
+                "zw"
+              ],
+              "enumDescriptions": [
+                "安道尔",
+                "阿拉伯联合酋长国",
+                "阿富汗",
+                "安提瓜和巴布达",
+                "安圭拉",
+                "阿尔巴尼亚",
+                "亚美尼亚",
+                "库拉索",
+                "安哥拉",
+                "南极洲",
+                "阿根廷",
+                "美属萨摩亚",
+                "奥地利",
+                "澳大利亚",
+                "阿鲁巴",
+                "奥兰群岛",
+                "阿塞拜疆",
+                "波斯尼亚和黑塞哥维那",
+                "巴巴多斯",
+                "孟加拉国",
+                "比利时",
+                "布基纳法索",
+                "保加利亚",
+                "巴林",
+                "布隆迪",
+                "贝宁",
+                "圣巴泰勒米",
+                "百慕大",
+                "文莱",
+                "玻利维亚",
+                "荷属加勒比区",
+                "巴西",
+                "巴哈马",
+                "不丹",
+                "布韦岛",
+                "博茨瓦纳",
+                "白俄罗斯",
+                "伯利兹",
+                "加拿大",
+                "科科斯（基林）群岛",
+                "刚果（金）",
+                "中非共和国",
+                "刚果（布）",
+                "瑞士",
+                "科特迪瓦",
+                "库克群岛",
+                "智利",
+                "喀麦隆",
+                "中国",
+                "哥伦比亚",
+                "哥斯达黎加",
+                "古巴",
+                "佛得角",
+                "库拉索",
+                "圣诞岛",
+                "塞浦路斯",
+                "捷克",
+                "德国",
+                "吉布提",
+                "丹麦",
+                "多米尼克",
+                "多米尼加共和国",
+                "阿尔及利亚",
+                "厄瓜多尔",
+                "爱沙尼亚",
+                "埃及",
+                "西撒哈拉",
+                "世界语",
+                "厄立特里亚",
+                "西班牙",
+                "西班牙语（加拿大）",
+                "西班牙语（欧盟）",
+                "西班牙语（格陵兰）",
+                "埃塞俄比亚",
+                "欧盟",
+                "芬兰",
+                "斐济",
+                "福克兰群岛",
+                "密克罗尼西亚",
+                "法罗群岛",
+                "法国",
+                "加蓬",
+                "英国",
+                "英格兰",
+                "北爱尔兰",
+                "苏格兰",
+                "威尔士",
+                "格林纳达",
+                "格鲁吉亚",
+                "法属圭亚那",
+                "根西岛",
+                "加纳",
+                "直布罗陀",
+                "格陵兰",
+                "冈比亚",
+                "几内亚",
+                "瓜德罗普",
+                "赤道几内亚",
+                "希腊",
+                "南乔治亚和南桑威奇群岛",
+                "危地马拉",
+                "关岛",
+                "几内亚比绍",
+                "圭亚那",
+                "希伯来语",
+                "印地语",
+                "中国香港特别行政区",
+                "赫德岛和麦克唐纳群岛",
+                "洪都拉斯",
+                "克罗地亚",
+                "海地",
+                "匈牙利",
+                "印度尼西亚",
+                "爱尔兰",
+                "以色列",
+                "马恩岛",
+                "印度",
+                "英属印度洋领地",
+                "伊拉克",
+                "伊朗",
+                "冰岛",
+                "意大利",
+                "日语",
+                "泽西岛",
+                "牙买加",
+                "约旦",
+                "日本",
+                "肯尼亚",
+                "吉尔吉斯斯坦",
+                "柬埔寨",
+                "基里巴斯",
+                "科摩罗",
+                "圣基茨和尼维斯",
+                "韩语",
+                "朝鲜",
+                "科威特",
+                "开曼群岛",
+                "哈萨克斯坦",
+                "老挝",
+                "黎巴嫩",
+                "圣卢西亚",
+                "列支敦士登",
+                "斯里兰卡",
+                "利比里亚",
+                "莱索托",
+                "立陶宛",
+                "卢森堡",
+                "拉脱维亚",
+                "利比亚",
+                "摩洛哥",
+                "摩纳哥",
+                "摩尔多瓦",
+                "黑山",
+                "法属圣马丁",
+                "马达加斯加",
+                "马绍尔群岛",
+                "北马其顿",
+                "马里",
+                "缅甸",
+                "蒙古",
+                "中国澳门特别行政区",
+                "北马里亚纳群岛",
+                "马提尼克",
+                "毛里塔尼亚",
+                "蒙特塞拉特",
+                "马耳他",
+                "毛里求斯",
+                "马尔代夫",
+                "马拉维",
+                "墨西哥",
+                "马来西亚",
+                "莫桑比克",
+                "纳米比亚",
+                "新喀里多尼亚",
+                "尼日尔",
+                "诺福克岛",
+                "尼日利亚",
+                "尼加拉瓜",
+                "荷兰",
+                "挪威",
+                "尼泊尔",
+                "瑙鲁",
+                "纽埃",
+                "新西兰",
+                "阿曼",
+                "巴拿马",
+                "秘鲁",
+                "法属波利尼西亚",
+                "巴布亚新几内亚",
+                "菲律宾",
+                "巴基斯坦",
+                "波兰",
+                "圣皮埃尔和密克隆群岛",
+                "皮特凯恩群岛",
+                "波多黎各",
+                "巴勒斯坦领土",
+                "葡萄牙",
+                "帕劳",
+                "巴拉圭",
+                "卡塔尔",
+                "留尼汪",
+                "罗马尼亚",
+                "塞尔维亚",
+                "俄罗斯",
+                "卢旺达",
+                "沙特阿拉伯",
+                "所罗门群岛",
+                "塞舌尔",
+                "苏丹",
+                "瑞典",
+                "新加坡",
+                "圣赫勒拿",
+                "斯洛文尼亚",
+                "斯瓦尔巴和扬马延",
+                "斯洛伐克",
+                "塞拉利昂",
+                "圣马力诺",
+                "塞内加尔",
+                "索马里",
+                "苏里南",
+                "南苏丹",
+                "圣多美和普林西比",
+                "萨尔瓦多",
+                "荷属圣马丁",
+                "叙利亚",
+                "斯威士兰",
+                "特克斯和凯科斯群岛",
+                "乍得",
+                "法属南部领地",
+                "多哥",
+                "泰国",
+                "塔吉克斯坦",
+                "托克劳",
+                "东帝汶",
+                "土库曼斯坦",
+                "突尼斯",
+                "汤加",
+                "土耳其",
+                "特立尼达和多巴哥",
+                "图瓦卢",
+                "台湾",
+                "坦桑尼亚",
+                "乌克兰",
+                "乌干达",
+                "英国",
+                "美国本土外小岛屿",
+                "未知（占位图标）",
+                "美国",
+                "乌拉圭",
+                "乌兹别克斯坦",
+                "梵蒂冈",
+                "圣文森特和格林纳丁斯",
+                "委内瑞拉",
+                "英属维尔京群岛",
+                "美属维尔京群岛",
+                "越南",
+                "瓦努阿图",
+                "瓦利斯和富图纳",
+                "萨摩亚",
+                "科索沃",
+                "也门",
+                "马约特",
+                "南非",
+                "赞比亚",
+                "津巴布韦"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "%config.section.files%",
+        "order": 2,
+        "properties": {
+          "i18n-ally.keystyle": {
+            "order": 300,
+            "type": "string",
+            "enum": [
+              "auto",
+              "nested",
+              "flat"
+            ],
+            "enumDescriptions": [
+              "%config.keystyle.auto%",
+              "%config.keystyle.nested%",
+              "%config.keystyle.flat%"
+            ],
+            "markdownDescription": "%config.keystyle%"
+          },
+          "i18n-ally.dirStructure": {
+            "order": 301,
+            "type": "string",
+            "enum": [
+              "auto",
+              "file",
+              "dir"
+            ],
+            "enumDescriptions": [
+              "%config.dir_structure.auto%",
+              "%config.dir_structure.file%",
+              "%config.dir_structure.dir%"
+            ],
+            "markdownDescription": "%config.dir_structure%"
+          },
+          "i18n-ally.pathMatcher": {
+            "order": 302,
+            "type": "string",
+            "description": "%config.path_matcher%"
+          },
+          "i18n-ally.namespace": {
+            "order": 303,
+            "type": "boolean",
+            "description": "%config.namespace%"
+          },
+          "i18n-ally.defaultNamespace": {
+            "order": 304,
+            "type": "string",
+            "description": "%config.default_namespace%"
+          },
+          "i18n-ally.preferredDelimiter": {
+            "order": 305,
+            "type": "string",
+            "default": "-",
+            "description": "%config.preferred_delimiter%"
+          },
+          "i18n-ally.indent": {
+            "order": 306,
+            "type": "number",
+            "default": 2,
+            "description": "%config.indent%"
+          },
+          "i18n-ally.tabStyle": {
+            "order": 307,
+            "type": "string",
+            "default": "space",
+            "enum": [
+              "space",
+              "tab"
+            ],
+            "enumDescriptions": [
+              "%config.tab_style.space%",
+              "%config.tab_style.tab%"
+            ],
+            "description": "%config.tab_style%"
+          },
+          "i18n-ally.sortKeys": {
+            "order": 308,
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%config.sort_keys%"
+          },
+          "i18n-ally.sortCompare": {
+            "order": 309,
+            "type": "string",
+            "enum": [
+              "binary",
+              "locale"
+            ],
+            "enumDescriptions": [
+              "%config.sort_compare.binary%",
+              "%config.sort_compare.locale%"
+            ],
+            "default": "binary",
+            "description": "%config.sort_compare%"
+          },
+          "i18n-ally.sortLocale": {
+            "order": 310,
+            "type": "string",
+            "description": "%config.sort_locale%"
+          },
+          "i18n-ally.keepFulfilled": {
+            "order": 311,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.keep_fulfill%"
+          },
+          "i18n-ally.keysInUse": {
+            "order": 312,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "%config.keys_in_use%"
+          },
+          "i18n-ally.readonly": {
+            "order": 313,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.readonly%"
+          },
+          "i18n-ally.disablePathParsing": {
+            "order": 314,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.disable_path_parsing%"
+          }
+        }
+      },
+      {
+        "title": "%config.section.inline%",
+        "order": 3,
+        "properties": {
+          "i18n-ally.annotations": {
+            "order": 400,
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%config.annotations%"
+          },
+          "i18n-ally.annotationInPlace": {
+            "order": 401,
+            "type": "boolean",
+            "default": true,
+            "description": "%config.annotation_in_place%"
+          },
+          "i18n-ally.annotationMaxLength": {
+            "order": 402,
+            "type": "number",
+            "default": 40,
+            "description": "%config.annotation_max_length%"
+          },
+          "i18n-ally.annotationDelimiter": {
+            "order": 403,
+            "type": "string",
+            "default": "·",
+            "description": "%config.annotation_delimiter%"
+          },
+          "i18n-ally.theme.annotation": {
+            "order": 404,
+            "type": "string",
+            "markdownDescription": "%config.theme_annotation%",
+            "default": "rgba(153, 153, 153, .8)"
+          },
+          "i18n-ally.theme.annotationMissing": {
+            "order": 405,
+            "type": "string",
+            "markdownDescription": "%config.theme_annotation_missing%",
+            "default": "rgba(153, 153, 153, .3)"
+          },
+          "i18n-ally.theme.annotationBorder": {
+            "order": 406,
+            "type": "string",
+            "markdownDescription": "%config.theme_annotation_border%",
+            "default": "rgba(153, 153, 153, .2)"
+          },
+          "i18n-ally.theme.annotationMissingBorder": {
+            "order": 407,
+            "type": "string",
+            "markdownDescription": "%config.theme_annotation_missing_border%",
+            "default": "rgba(153, 153, 153, .2)"
+          },
+          "i18n-ally.editor.preferEditor": {
+            "order": 408,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.editor_prefer_editor%"
+          }
+        }
+      },
+      {
+        "title": "%config.section.frameworks%",
+        "order": 4,
+        "properties": {
+          "i18n-ally.enabledFrameworks": {
+            "order": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "vue",
+                "react",
+                "vscode",
+                "ngx-translate",
+                "i18next",
+                "react-i18next",
+                "i18next-shopify",
+                "i18n-tag",
+                "flutter",
+                "vue-sfc",
+                "ember",
+                "chrome-ext",
+                "ruby-rails",
+                "custom",
+                "laravel",
+                "transloco",
+                "svelte",
+                "globalize",
+                "ui5",
+                "next-translate",
+                "php-gettext",
+                "general",
+                "lingui",
+                "jekyll",
+                "fluent-vue",
+                "fluent-vue-sfc",
+                "next-intl",
+                "next-international"
+              ],
+              "enumDescriptions": [
+                "%config.enabled_frameworks.vue%",
+                "%config.enabled_frameworks.react%",
+                "%config.enabled_frameworks.vscode%",
+                "%config.enabled_frameworks.ngx-translate%",
+                "%config.enabled_frameworks.i18next%",
+                "%config.enabled_frameworks.react-i18next%",
+                "%config.enabled_frameworks.i18next-shopify%",
+                "%config.enabled_frameworks.i18n-tag%",
+                "%config.enabled_frameworks.flutter%",
+                "%config.enabled_frameworks.vue-sfc%",
+                "%config.enabled_frameworks.ember%",
+                "%config.enabled_frameworks.chrome-ext%",
+                "%config.enabled_frameworks.ruby-rails%",
+                "%config.enabled_frameworks.custom%",
+                "%config.enabled_frameworks.laravel%",
+                "%config.enabled_frameworks.transloco%",
+                "%config.enabled_frameworks.svelte%",
+                "%config.enabled_frameworks.globalize%",
+                "%config.enabled_frameworks.ui5%",
+                "%config.enabled_frameworks.next-translate%",
+                "%config.enabled_frameworks.php-gettext%",
+                "%config.enabled_frameworks.general%",
+                "%config.enabled_frameworks.lingui%",
+                "%config.enabled_frameworks.jekyll%",
+                "%config.enabled_frameworks.fluent-vue%",
+                "%config.enabled_frameworks.fluent-vue-sfc%",
+                "%config.enabled_frameworks.next-intl%",
+                "%config.enabled_frameworks.next-international%"
+              ]
+            },
+            "description": "%config.enabled_frameworks%"
+          },
+          "i18n-ally.enabledParsers": {
+            "order": 501,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "js",
+                "ts",
+                "json",
+                "json5",
+                "yaml",
+                "ini",
+                "po",
+                "php",
+                "properties",
+                "ftl"
+              ],
+              "enumDescriptions": [
+                "%config.enabled_parsers.js%",
+                "%config.enabled_parsers.ts%",
+                "%config.enabled_parsers.json%",
+                "%config.enabled_parsers.json5%",
+                "%config.enabled_parsers.yaml%",
+                "%config.enabled_parsers.ini%",
+                "%config.enabled_parsers.po%",
+                "%config.enabled_parsers.php%",
+                "%config.enabled_parsers.properties%",
+                "%config.enabled_parsers.ftl%"
+              ]
+            },
+            "description": "%config.enabled_parsers%"
+          },
+          "i18n-ally.parsers.extendFileExtensions": {
+            "order": 502,
+            "type": "object",
+            "description": "%config.parsers_extend_file_extensions%",
+            "default": {}
+          },
+          "i18n-ally.parsers.typescript.tsNodePath": {
+            "order": 503,
+            "type": "string",
+            "description": "%config.ts_node_path%",
+            "default": "node_modules/ts-node/dist/bin.js"
+          },
+          "i18n-ally.parsers.typescript.compilerOptions": {
+            "order": 504,
+            "type": "object",
+            "description": "%config.ts_compiler_options%",
+            "default": {}
+          },
+          "i18n-ally.parserOptions": {
+            "order": 505,
+            "type": "object",
+            "description": "%config.parser_options%"
+          },
+          "i18n-ally.frameworks.ruby-rails.scopeRoot": {
+            "order": 506,
+            "type": "string",
+            "description": "%config.ruby_scope_root%",
+            "default": "app/views"
+          },
+          "i18n-ally.regex.key": {
+            "order": 507,
+            "type": "string",
+            "description": "%config.regex_key%"
+          },
+          "i18n-ally.regex.usageMatch": {
+            "order": 508,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "%config.regex_usage_match%"
+          },
+          "i18n-ally.regex.usageMatchAppend": {
+            "order": 509,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "%config.regex_usage_match_append%"
+          },
+          "i18n-ally.refactor.templates": {
+            "order": 510,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "html-attribute",
+                    "html-inline",
+                    "html-interpolation",
+                    "js-string",
+                    "js-template",
+                    "jsx-text"
+                  ]
+                },
+                "template": {
+                  "type": "string"
+                },
+                "templates": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "include": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "exclude": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "%config.refactor_templates%"
+          },
+          "i18n-ally.usage.scanningIgnore": {
+            "order": 511,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "%config.usage.scanning_ignore%"
+          },
+          "i18n-ally.usage.derivedKeyRules": {
+            "order": 512,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": null,
+            "description": "%config.derived_keys%"
+          }
+        }
+      },
+      {
+        "title": "%config.section.translate%",
+        "order": 5,
+        "properties": {
+          "i18n-ally.translate.engines": {
+            "order": 600,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "google",
+                "google-cn",
+                "deepl",
+                "libretranslate",
+                "baidu",
+                "openai"
+              ],
+              "enumDescriptions": [
+                "%config.translate.engines.google%",
+                "%config.translate.engines.google-cn%",
+                "%config.translate.engines.deepl%",
+                "%config.translate.engines.libretranslate%",
+                "%config.translate.engines.baidu%",
+                "%config.translate.engines.openai%"
+              ]
+            },
+            "default": [
+              "google"
+            ],
+            "markdownDescription": "%config.translate.engines%"
+          },
+          "i18n-ally.translate.parallels": {
+            "order": 601,
+            "type": "number",
+            "default": 5,
+            "description": "%config.translate.parallels%"
+          },
+          "i18n-ally.translate.saveAsCandidates": {
+            "order": 602,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.translate_save_as_candidates%"
+          },
+          "i18n-ally.translate.onExtract": {
+            "order": 603,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.translate_on_extract%"
+          },
+          "i18n-ally.translate.overrideExisting": {
+            "order": 604,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.translate_override_existing%"
+          },
+          "i18n-ally.translate.promptSource": {
+            "order": 605,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.prompt_translating_source%"
+          },
+          "i18n-ally.translate.fallbackToKey": {
+            "order": 606,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.translate.fallbackToKey%"
+          },
+          "i18n-ally.translate.fallbackFromOtherLocales": {
+            "order": 607,
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "markdownDescription": "%config.fallback_from_other_locales%"
+          },
+          "i18n-ally.translate.fallbackSourceOrder": {
+            "order": 608,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "scope": "resource",
+            "markdownDescription": "%config.fallback_source_order%"
+          },
+          "i18n-ally.translate.localeMap": {
+            "order": 609,
+            "type": "object",
+            "default": {},
+            "scope": "resource",
+            "markdownDescription": "%config.locale_map%",
             "properties": {
-              "source": {
-                "type": "string",
-                "enum": [
-                  "html-attribute",
-                  "html-inline",
-                  "html-interpolation",
-                  "js-string",
-                  "js-template",
-                  "jsx-text"
-                ]
-              },
-              "template": {
-                "type": "string"
-              },
-              "templates": {
-                "type": "array",
-                "items": {
-                  "type": "string"
+              "baidu": {
+                "type": "object",
+                "markdownDescription": "百度翻译：左边写你项目里的语言标识（文件名去后缀，如 `zh-tw`、`chs`），右边选该引擎的语言码。没有语言码概念的引擎（openai）直接写语言名。",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": [
+                    "zh",
+                    "cht",
+                    "yue",
+                    "wyw",
+                    "en",
+                    "jp",
+                    "kor",
+                    "fra",
+                    "spa",
+                    "ru",
+                    "pt",
+                    "de",
+                    "it",
+                    "el",
+                    "nl",
+                    "pl",
+                    "bul",
+                    "est",
+                    "dan",
+                    "fin",
+                    "cs",
+                    "rom",
+                    "slo",
+                    "swe",
+                    "hu",
+                    "vie",
+                    "th",
+                    "ara"
+                  ],
+                  "enumDescriptions": [
+                    "中文（简体）",
+                    "中文（繁体）",
+                    "粤语",
+                    "文言文",
+                    "英语",
+                    "日语",
+                    "韩语",
+                    "法语",
+                    "西班牙语",
+                    "俄语",
+                    "葡萄牙语",
+                    "德语",
+                    "意大利语",
+                    "希腊语",
+                    "荷兰语",
+                    "波兰语",
+                    "保加利亚语",
+                    "爱沙尼亚语",
+                    "丹麦语",
+                    "芬兰语",
+                    "捷克语",
+                    "罗马尼亚语",
+                    "斯洛文尼亚语",
+                    "瑞典语",
+                    "匈牙利语",
+                    "越南语",
+                    "泰语",
+                    "阿拉伯语"
+                  ]
                 }
               },
-              "include": {
-                "type": "array",
-                "items": {
-                  "type": "string"
+              "google": {
+                "type": "object",
+                "markdownDescription": "Google 翻译：左边写你项目里的语言标识（文件名去后缀，如 `zh-tw`、`chs`），右边选该引擎的语言码。没有语言码概念的引擎（openai）直接写语言名。",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": [
+                    "zh-CN",
+                    "zh-TW",
+                    "en",
+                    "ja",
+                    "ko",
+                    "fr",
+                    "de",
+                    "es",
+                    "ru",
+                    "pt",
+                    "it",
+                    "ar",
+                    "th",
+                    "vi",
+                    "id",
+                    "nl",
+                    "pl",
+                    "tr",
+                    "hi",
+                    "uk",
+                    "cs",
+                    "sv",
+                    "da",
+                    "fi",
+                    "el",
+                    "hu",
+                    "ro"
+                  ],
+                  "enumDescriptions": [
+                    "中文（简体）",
+                    "中文（繁体）",
+                    "英语",
+                    "日语",
+                    "韩语",
+                    "法语",
+                    "德语",
+                    "西班牙语",
+                    "俄语",
+                    "葡萄牙语",
+                    "意大利语",
+                    "阿拉伯语",
+                    "泰语",
+                    "越南语",
+                    "印尼语",
+                    "荷兰语",
+                    "波兰语",
+                    "土耳其语",
+                    "印地语",
+                    "乌克兰语",
+                    "捷克语",
+                    "瑞典语",
+                    "丹麦语",
+                    "芬兰语",
+                    "希腊语",
+                    "匈牙利语",
+                    "罗马尼亚语"
+                  ]
                 }
               },
-              "exclude": {
-                "type": "array",
-                "items": {
+              "google-cn": {
+                "type": "object",
+                "markdownDescription": "Google 翻译（国内镜像）：左边写你项目里的语言标识（文件名去后缀，如 `zh-tw`、`chs`），右边选该引擎的语言码。没有语言码概念的引擎（openai）直接写语言名。",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": [
+                    "zh-CN",
+                    "zh-TW",
+                    "en",
+                    "ja",
+                    "ko",
+                    "fr",
+                    "de",
+                    "es",
+                    "ru",
+                    "pt",
+                    "it",
+                    "ar",
+                    "th",
+                    "vi",
+                    "id",
+                    "nl",
+                    "pl",
+                    "tr",
+                    "hi",
+                    "uk",
+                    "cs",
+                    "sv",
+                    "da",
+                    "fi",
+                    "el",
+                    "hu",
+                    "ro"
+                  ],
+                  "enumDescriptions": [
+                    "中文（简体）",
+                    "中文（繁体）",
+                    "英语",
+                    "日语",
+                    "韩语",
+                    "法语",
+                    "德语",
+                    "西班牙语",
+                    "俄语",
+                    "葡萄牙语",
+                    "意大利语",
+                    "阿拉伯语",
+                    "泰语",
+                    "越南语",
+                    "印尼语",
+                    "荷兰语",
+                    "波兰语",
+                    "土耳其语",
+                    "印地语",
+                    "乌克兰语",
+                    "捷克语",
+                    "瑞典语",
+                    "丹麦语",
+                    "芬兰语",
+                    "希腊语",
+                    "匈牙利语",
+                    "罗马尼亚语"
+                  ]
+                }
+              },
+              "deepl": {
+                "type": "object",
+                "markdownDescription": "DeepL：左边写你项目里的语言标识（文件名去后缀，如 `zh-tw`、`chs`），右边选该引擎的语言码。没有语言码概念的引擎（openai）直接写语言名。",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": [
+                    "EN-US",
+                    "EN-GB",
+                    "ZH",
+                    "ZH-HANT",
+                    "JA",
+                    "KO",
+                    "FR",
+                    "DE",
+                    "ES",
+                    "RU",
+                    "PT-BR",
+                    "PT-PT",
+                    "IT",
+                    "NL",
+                    "PL",
+                    "AR",
+                    "TR",
+                    "ID",
+                    "UK",
+                    "VI"
+                  ],
+                  "enumDescriptions": [
+                    "英语（美式）",
+                    "英语（英式）",
+                    "中文（简体）",
+                    "中文（繁体）",
+                    "日语",
+                    "韩语",
+                    "法语",
+                    "德语",
+                    "西班牙语",
+                    "俄语",
+                    "葡萄牙语（巴西）",
+                    "葡萄牙语（葡萄牙）",
+                    "意大利语",
+                    "荷兰语",
+                    "波兰语",
+                    "阿拉伯语",
+                    "土耳其语",
+                    "印尼语",
+                    "乌克兰语",
+                    "越南语"
+                  ]
+                }
+              },
+              "libretranslate": {
+                "type": "object",
+                "markdownDescription": "LibreTranslate：左边写你项目里的语言标识（文件名去后缀，如 `zh-tw`、`chs`），右边选该引擎的语言码。没有语言码概念的引擎（openai）直接写语言名。",
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": [
+                    "zh",
+                    "zt",
+                    "en",
+                    "ja",
+                    "ko",
+                    "fr",
+                    "de",
+                    "es",
+                    "ru",
+                    "pt",
+                    "it",
+                    "ar",
+                    "nl",
+                    "pl",
+                    "tr",
+                    "vi"
+                  ],
+                  "enumDescriptions": [
+                    "中文（简体）",
+                    "中文（繁体）",
+                    "英语",
+                    "日语",
+                    "韩语",
+                    "法语",
+                    "德语",
+                    "西班牙语",
+                    "俄语",
+                    "葡萄牙语",
+                    "意大利语",
+                    "阿拉伯语",
+                    "荷兰语",
+                    "波兰语",
+                    "土耳其语",
+                    "越南语"
+                  ]
+                }
+              },
+              "openai": {
+                "type": "object",
+                "markdownDescription": "OpenAI（按语言名写进提示词，不做语言码转换）：左边写你项目里的语言标识（文件名去后缀，如 `zh-tw`、`chs`），右边选该引擎的语言码。没有语言码概念的引擎（openai）直接写语言名。",
+                "additionalProperties": {
                   "type": "string"
                 }
               }
             }
-          },
-          "description": "%config.refactor_templates%"
-        },
-        "i18n-ally.translate.saveAsCandidates": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.translate_save_as_candidates%"
-        },
-        "i18n-ally.translate.onExtract": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.translate_on_extract%"
-        },
-        "i18n-ally.translate.fallbackToKey": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.translate.fallbackToKey%"
-        },
-        "i18n-ally.translate.fallbackFromOtherLocales": {
-          "type": "boolean",
-          "default": true,
-          "scope": "resource",
-          "markdownDescription": "%config.fallback_from_other_locales%"
-        },
-        "i18n-ally.translate.fallbackSourceOrder": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "scope": "resource",
-          "markdownDescription": "%config.fallback_source_order%"
-        },
-        "i18n-ally.translate.engines": {
-          "type": "array",
-          "items": {
+          }
+        }
+      },
+      {
+        "title": "%config.section.engines%",
+        "order": 6,
+        "properties": {
+          "i18n-ally.translate.google.apiKey": {
+            "order": 610,
             "type": "string",
+            "default": null,
+            "description": "%config.google_api_key%"
+          },
+          "i18n-ally.translate.deepl.apiKey": {
+            "order": 611,
+            "type": "string",
+            "default": null,
+            "markdownDescription": "%config.deepl_api_key%"
+          },
+          "i18n-ally.translate.deepl.useFreeApiEntry": {
+            "order": 612,
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%config.deepl_use_free_api_entry%"
+          },
+          "i18n-ally.translate.deepl.enableLog": {
+            "order": 613,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.deepl_log%"
+          },
+          "i18n-ally.translate.baidu.appid": {
+            "order": 614,
+            "type": "string",
+            "default": null,
+            "markdownDescription": "%config.baidu_appid%"
+          },
+          "i18n-ally.translate.baidu.apiSecret": {
+            "order": 615,
+            "type": "string",
+            "default": null,
+            "markdownDescription": "%config.baidu_app_secret%"
+          },
+          "i18n-ally.translate.libre.apiRoot": {
+            "order": 616,
+            "type": "string",
+            "default": "http://localhost:5000",
+            "markdownDescription": "%config.libretranslate_api_root%"
+          },
+          "i18n-ally.translate.openai.apiKey": {
+            "order": 617,
+            "type": "string",
+            "default": null,
+            "markdownDescription": "%config.openai_api_key%"
+          },
+          "i18n-ally.translate.openai.apiRoot": {
+            "order": 618,
+            "type": "string",
+            "default": "https://api.openai.com",
+            "description": "%config.openai_api_root%"
+          },
+          "i18n-ally.translate.openai.apiModel": {
+            "order": 619,
+            "type": "string",
+            "default": "gpt-3.5-turbo",
             "enum": [
-              "google",
-              "google-cn",
-              "deepl",
-              "libretranslate",
-              "baidu",
-              "openai"
+              "gpt-3.5-turbo",
+              "gpt-3.5-turbo-16k",
+              "gpt-3.5-turbo-0301",
+              "gpt-3.5-turbo-0613",
+              "gpt-4",
+              "gpt-4-0314",
+              "gpt-4-0613",
+              "gpt-4-32k",
+              "gpt-4-32k-0314",
+              "gpt-4-32k-0613"
+            ],
+            "description": "%config.openai_api_model%",
+            "enumDescriptions": [
+              "%config.openai_api_model.gpt-3.5-turbo%",
+              "%config.openai_api_model.gpt-3.5-turbo-16k%",
+              "%config.openai_api_model.gpt-3.5-turbo-0301%",
+              "%config.openai_api_model.gpt-3.5-turbo-0613%",
+              "%config.openai_api_model.gpt-4%",
+              "%config.openai_api_model.gpt-4-0314%",
+              "%config.openai_api_model.gpt-4-0613%",
+              "%config.openai_api_model.gpt-4-32k%",
+              "%config.openai_api_model.gpt-4-32k-0314%",
+              "%config.openai_api_model.gpt-4-32k-0613%"
+            ]
+          }
+        }
+      },
+      {
+        "title": "%config.section.sync%",
+        "order": 7,
+        "properties": {
+          "i18n-ally.syncBackend.enabled": {
+            "order": 700,
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%config.sync_backend_enabled%"
+          },
+          "i18n-ally.syncBackend.type": {
+            "order": 701,
+            "type": "string",
+            "default": "5",
+            "description": "%config.sync_backend_type%"
+          },
+          "i18n-ally.syncBackend.baseUrl": {
+            "order": 702,
+            "type": "string",
+            "default": "",
+            "scope": "resource",
+            "description": "%config.sync_backend_base_url%"
+          },
+          "i18n-ally.syncBackend.syncEndpoint": {
+            "order": 703,
+            "type": "string",
+            "default": "",
+            "description": "%config.sync_backend_sync_endpoint%"
+          },
+          "i18n-ally.syncBackend.tokenHeader": {
+            "order": 704,
+            "type": "string",
+            "default": "Authorization",
+            "description": "%config.sync_backend_token_header%"
+          },
+          "i18n-ally.syncBackend.token": {
+            "order": 705,
+            "type": "string",
+            "default": "",
+            "description": "%config.sync_backend_token%"
+          },
+          "i18n-ally.syncBackend.translateAfterSync": {
+            "order": 706,
+            "type": "boolean",
+            "default": true,
+            "description": "%config.sync_backend_translate_after_sync%"
+          },
+          "i18n-ally.review.enabled": {
+            "order": 800,
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%config.review_enabled%"
+          },
+          "i18n-ally.review.gutters": {
+            "order": 801,
+            "type": "boolean",
+            "default": true,
+            "description": "%config.review_gutters%"
+          },
+          "i18n-ally.review.user.name": {
+            "order": 802,
+            "type": "string",
+            "description": "%config.review_username%"
+          },
+          "i18n-ally.review.user.email": {
+            "order": 803,
+            "type": "string",
+            "description": "%config.review_email%"
+          },
+          "i18n-ally.review.removeCommentOnResolved": {
+            "order": 804,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.review_remove_on_resolved%"
+          }
+        }
+      },
+      {
+        "title": "%config.section.extract%",
+        "order": 8,
+        "properties": {
+          "i18n-ally.extract.keygenStrategy": {
+            "order": 900,
+            "type": "string",
+            "default": "slug",
+            "enum": [
+              "slug",
+              "random",
+              "empty",
+              "source"
             ],
             "enumDescriptions": [
-              "%config.translate.engines.google%",
-              "%config.translate.engines.google-cn%",
-              "%config.translate.engines.deepl%",
-              "%config.translate.engines.libretranslate%",
-              "%config.translate.engines.baidu%",
-              "%config.translate.engines.openai%"
-            ]
+              "%config.keygen_strategy.slug%",
+              "%config.keygen_strategy.random%",
+              "%config.keygen_strategy.empty%",
+              "%config.keygen_strategy.source%"
+            ],
+            "markdownDescription": "%config.keygen_strategy%"
           },
-          "default": [
-            "google"
-          ],
-          "description": "%config.translate.engines%"
-        },
-        "i18n-ally.translate.localeMap": {
-          "type": "object",
-          "default": {},
-          "scope": "resource",
-          "markdownDescription": "%config.locale_map%"
-        },
-        "i18n-ally.translate.parallels": {
-          "type": "number",
-          "default": 5,
-          "description": "%config.translate.parallels%"
-        },
-        "i18n-ally.translate.promptSource": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.prompt_translating_source%"
-        },
-        "i18n-ally.translate.overrideExisting": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.translate_override_existing%"
-        },
-        "i18n-ally.translate.google.apiKey": {
-          "type": "string",
-          "default": null,
-          "description": "%config.google_api_key%"
-        },
-        "i18n-ally.translate.deepl.apiKey": {
-          "type": "string",
-          "default": null,
-          "description": "%config.deepl_api_key%"
-        },
-        "i18n-ally.translate.baidu.appid": {
-          "type": "string",
-          "default": null,
-          "description": "%config.baidu_appid%"
-        },
-        "i18n-ally.translate.baidu.apiSecret": {
-          "type": "string",
-          "default": null,
-          "description": "%config.baidu_app_secret%"
-        },
-        "i18n-ally.translate.deepl.enableLog": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.deepl_log%"
-        },
-        "i18n-ally.translate.deepl.useFreeApiEntry": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.deepl_use_free_api_entry%"
-        },
-        "i18n-ally.translate.libre.apiRoot": {
-          "type": "string",
-          "default": "http://localhost:5000",
-          "description": "%config.libretranslate_api_root%"
-        },
-        "i18n-ally.translate.openai.apiKey": {
-          "type": "string",
-          "default": null,
-          "description": "%config.openai_api_key%"
-        },
-        "i18n-ally.translate.openai.apiRoot": {
-          "type": "string",
-          "default": "https://api.openai.com",
-          "description": "%config.openai_api_root%"
-        },
-        "i18n-ally.translate.openai.apiModel": {
-          "type": "string",
-          "default": "gpt-3.5-turbo",
-          "enum": [
-            "gpt-3.5-turbo",
-            "gpt-3.5-turbo-16k",
-            "gpt-3.5-turbo-0301",
-            "gpt-3.5-turbo-0613",
-            "gpt-4",
-            "gpt-4-0314",
-            "gpt-4-0613",
-            "gpt-4-32k",
-            "gpt-4-32k-0314",
-            "gpt-4-32k-0613"
-          ],
-          "description": "%config.openai_api_model%",
-          "enumDescriptions": [
-            "%config.openai_api_model.gpt-3.5-turbo%",
-            "%config.openai_api_model.gpt-3.5-turbo-16k%",
-            "%config.openai_api_model.gpt-3.5-turbo-0301%",
-            "%config.openai_api_model.gpt-3.5-turbo-0613%",
-            "%config.openai_api_model.gpt-4%",
-            "%config.openai_api_model.gpt-4-0314%",
-            "%config.openai_api_model.gpt-4-0613%",
-            "%config.openai_api_model.gpt-4-32k%",
-            "%config.openai_api_model.gpt-4-32k-0314%",
-            "%config.openai_api_model.gpt-4-32k-0613%"
-          ]
-        },
-        "i18n-ally.usage.scanningIgnore": {
-          "type": "array",
-          "items": {
-            "type": "string"
+          "i18n-ally.extract.keygenStyle": {
+            "order": 901,
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "kebab-case",
+              "snake_case",
+              "camelCase",
+              "PascalCase",
+              "ALL_CAPS"
+            ],
+            "enumDescriptions": [
+              "%config.keygen_style.default%",
+              "%config.keygen_style.kebab-case%",
+              "%config.keygen_style.snake_case%",
+              "%config.keygen_style.camelCase%",
+              "%config.keygen_style.PascalCase%",
+              "%config.keygen_style.ALL_CAPS%"
+            ],
+            "description": "%config.keygen_style%"
           },
-          "description": "%config.usage.scanning_ignore%"
-        },
-        "i18n-ally.usage.derivedKeyRules": {
-          "type": "array",
-          "items": {
-            "type": "string"
+          "i18n-ally.extract.keyPrefix": {
+            "order": 902,
+            "type": "string",
+            "default": "",
+            "description": "%config.key_prefix%"
           },
-          "default": null,
-          "description": "%config.derived_keys%"
-        },
-        "i18n-ally.frameworks.ruby-rails.scopeRoot": {
-          "type": "string",
-          "description": "%config.ruby_scope_root%",
-          "default": "app/views"
-        },
-        "i18n-ally.parsers.typescript.tsNodePath": {
-          "type": "string",
-          "description": "%config.ts_node_path%",
-          "default": "node_modules/ts-node/dist/bin.js"
-        },
-        "i18n-ally.parsers.typescript.compilerOptions": {
-          "type": "object",
-          "description": "%config.ts_compiler_options%",
-          "default": {}
-        },
-        "i18n-ally.parsers.extendFileExtensions": {
-          "type": "object",
-          "description": "%config.parsers_extend_file_extensions%",
-          "default": {}
-        },
-        "i18n-ally.review.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.review_enabled%"
-        },
-        "i18n-ally.review.gutters": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.review_gutters%"
-        },
-        "i18n-ally.review.user.name": {
-          "type": "string",
-          "description": "%config.review_username%"
-        },
-        "i18n-ally.review.user.email": {
-          "type": "string",
-          "description": "%config.review_email%"
-        },
-        "i18n-ally.review.removeCommentOnResolved": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.review_remove_on_resolved%"
-        },
-        "i18n-ally.editor.preferEditor": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.editor_prefer_editor%"
-        },
-        "i18n-ally.extract.keygenStrategy": {
-          "type": "string",
-          "default": "slug",
-          "enum": [
-            "slug",
-            "random",
-            "empty",
-            "source"
-          ],
-          "enumDescriptions": [
-            "%config.keygen_strategy.slug%",
-            "%config.keygen_strategy.random%",
-            "%config.keygen_strategy.empty%",
-            "%config.keygen_strategy.source%"
-          ],
-          "description": "%config.keygen_strategy%"
-        },
-        "i18n-ally.extract.keygenStyle": {
-          "type": "string",
-          "default": "default",
-          "enum": [
-            "default",
-            "kebab-case",
-            "snake_case",
-            "camelCase",
-            "PascalCase",
-            "ALL_CAPS"
-          ],
-          "enumDescriptions": [
-            "%config.keygen_style.default%",
-            "%config.keygen_style.kebab-case%",
-            "%config.keygen_style.snake_case%",
-            "%config.keygen_style.camelCase%",
-            "%config.keygen_style.PascalCase%",
-            "%config.keygen_style.ALL_CAPS%"
-          ],
-          "description": "%config.keygen_style%"
-        },
-        "i18n-ally.extract.keyPrefix": {
-          "type": "string",
-          "default": "",
-          "description": "%config.key_prefix%"
-        },
-        "i18n-ally.extract.keyMaxLength": {
-          "type": "number",
-          "default": null,
-          "description": "%config.key_max_length%"
-        },
-        "i18n-ally.extract.targetPickingStrategy": {
-          "type": "string",
-          "default": "none",
-          "enum": [
-            "none",
-            "most-similar",
-            "most-similar-by-key",
-            "file-previous",
-            "global-previous"
-          ],
-          "enumDescriptions": [
-            "%config.target_picking_strategy.none%",
-            "%config.target_picking_strategy.most-similar%",
-            "%config.target_picking_strategy.most-similar-by-key%",
-            "%config.target_picking_strategy.file-previous%",
-            "%config.target_picking_strategy.global-previous%"
-          ],
-          "description": "%config.target_picking_strategy%"
-        },
-        "i18n-ally.extract.parsers.html": {
-          "type": "object",
-          "default": {},
-          "description": "%config.extract_parsers_html%"
-        },
-        "i18n-ally.extract.parsers.babel": {
-          "type": "object",
-          "default": {},
-          "description": "%config.extract_parsers_babel%"
-        },
-        "i18n-ally.extract.autoDetect": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.extract_auto_detect%"
-        },
-        "i18n-ally.extract.autoImportStatement": {
-          "type": "string",
-          "default": "",
-          "scope": "resource",
-          "description": "%config.extract_auto_import_statement%"
-        },
-        "i18n-ally.syncBackend.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.sync_backend_enabled%"
-        },
-        "i18n-ally.syncBackend.baseUrl": {
-          "type": "string",
-          "default": "",
-          "scope": "resource",
-          "description": "%config.sync_backend_base_url%"
-        },
-        "i18n-ally.syncBackend.type": {
-          "type": "string",
-          "default": "5",
-          "description": "%config.sync_backend_type%"
-        },
-        "i18n-ally.extract.ignored": {
-          "type": "array",
-          "items": {
-            "type": "string"
+          "i18n-ally.extract.keyMaxLength": {
+            "order": 903,
+            "type": "number",
+            "default": null,
+            "description": "%config.key_max_length%"
           },
-          "description": "%config.extract_ignored%"
-        },
-        "i18n-ally.extract.ignoredRegex": {
-          "type": "array",
-          "items": {
-            "type": "string"
+          "i18n-ally.extract.targetPickingStrategy": {
+            "order": 904,
+            "type": "string",
+            "default": "none",
+            "enum": [
+              "none",
+              "most-similar",
+              "most-similar-by-key",
+              "file-previous",
+              "global-previous"
+            ],
+            "enumDescriptions": [
+              "%config.target_picking_strategy.none%",
+              "%config.target_picking_strategy.most-similar%",
+              "%config.target_picking_strategy.most-similar-by-key%",
+              "%config.target_picking_strategy.file-previous%",
+              "%config.target_picking_strategy.global-previous%"
+            ],
+            "description": "%config.target_picking_strategy%"
           },
-          "description": "%config.extract_ignored_regex%"
-        },
-        "i18n-ally.extract.ignoredByFiles": {
-          "type": "object",
-          "default": {},
-          "description": "%config.extract_ignored_by_files%"
-        },
-        "i18n-ally.parserOptions": {
-          "type": "object",
-          "description": "%config.parser_options%"
-        },
-        "i18n-ally.defaultNamespace": {
-          "type": "string",
-          "description": "%config.default_namespace%"
-        },
-        "i18n-ally.derivedKeyRules": {
-          "deprecationMessage": "%config.deprecated_derived_key_rules%"
-        },
-        "i18n-ally.filenameMatchRegex": {
-          "deprecationMessage": "%config.deprecated_filename_match_regex%"
-        },
-        "i18n-ally.fileNamespace": {
-          "deprecationMessage": "%config.deprecated_file_namespace%"
-        },
-        "i18n-ally.keyMatchRegex": {
-          "deprecationMessage": "%config.deprecated_key_match_regex%"
-        },
-        "vue-i18n-ally.localesPaths": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.encoding": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.sourceLanguage": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.displayLanguage": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.ignoredLocales": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.keystyle": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.dirStructure": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.annotations": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.annotationMaxLength": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.annotationDelimiter": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.filenameMatchRegex": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.includeSubfolders": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.fullReloadOnChanged": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.sortKeys": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.preferredDelimiter": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "vue-i18n-ally.readonly": {
-          "deprecationMessage": "%config.deprecated%"
-        },
-        "i18n-ally.syncBackend.tokenHeader": {
-          "type": "string",
-          "default": "Authorization",
-          "description": "%config.sync_backend_token_header%"
-        },
-        "i18n-ally.syncBackend.token": {
-          "type": "string",
-          "default": "",
-          "description": "%config.sync_backend_token%"
-        },
-        "i18n-ally.extract.requireCJK": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.extract_require_cjk%"
-        },
-        "i18n-ally.syncBackend.syncEndpoint": {
-          "type": "string",
-          "default": "http://localhost:9006/locales-sync",
-          "description": "%config.sync_backend_sync_endpoint%"
-        },
-        "i18n-ally.syncBackend.translateAfterSync": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.sync_backend_translate_after_sync%"
+          "i18n-ally.extract.autoDetect": {
+            "order": 905,
+            "type": "boolean",
+            "default": false,
+            "description": "%config.extract_auto_detect%"
+          },
+          "i18n-ally.extract.autoImportStatement": {
+            "order": 906,
+            "type": "string",
+            "default": "",
+            "scope": "resource",
+            "description": "%config.extract_auto_import_statement%"
+          },
+          "i18n-ally.extract.requireCJK": {
+            "order": 907,
+            "type": "boolean",
+            "default": true,
+            "description": "%config.extract_require_cjk%"
+          },
+          "i18n-ally.extract.parsers.html": {
+            "order": 908,
+            "type": "object",
+            "default": {},
+            "description": "%config.extract_parsers_html%"
+          },
+          "i18n-ally.extract.parsers.babel": {
+            "order": 909,
+            "type": "object",
+            "default": {},
+            "description": "%config.extract_parsers_babel%"
+          },
+          "i18n-ally.extract.ignored": {
+            "order": 910,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "%config.extract_ignored%"
+          },
+          "i18n-ally.extract.ignoredRegex": {
+            "order": 911,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "%config.extract_ignored_regex%"
+          },
+          "i18n-ally.extract.ignoredByFiles": {
+            "order": 912,
+            "type": "object",
+            "default": {},
+            "description": "%config.extract_ignored_by_files%"
+          }
         }
-      }
-    }
-  },
-  "standard-version": {
-    "types": [
-      {
-        "type": "feat",
-        "section": "⚡ Features"
-      },
-      {
-        "type": "fix",
-        "section": "🐞 Bug Fixes"
-      },
-      {
-        "type": "refactor",
-        "section": "🔮 Refactor"
-      },
-      {
-        "type": "test",
-        "section": "⚗ Tests"
-      },
-      {
-        "type": "docs",
-        "section": "📚 Documentations"
-      },
-      {
-        "type": "i18n",
-        "section": "🌍 Internationalization"
-      },
-      {
-        "type": "ci",
-        "hidden": true
       }
     ]
   },
-  "packageManager": "yarn@1.22.19"
+  "packageManager": "pnpm@12.18.0"
 }

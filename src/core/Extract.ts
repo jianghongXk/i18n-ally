@@ -74,9 +74,9 @@ export function generateKeyFromText(text: string, filepath?: string, reuseExisti
   return key
 }
 
-export async function extractHardStrings(document: TextDocument, extracts: ExtractInfo[], saveFile = false, sharedKeyCache?: Map<string, string>) {
+export async function extractHardStrings(document: TextDocument, extracts: ExtractInfo[], saveFile = false, sharedKeyCache?: Map<string, string>): Promise<string[]> {
   if (!extracts.length)
-    return
+    return []
 
   const editor = await window.showTextDocument(document)
   const filepath = document.uri.fsPath
@@ -239,6 +239,11 @@ export async function extractHardStrings(document: TextDocument, extracts: Extra
     await document.save()
 
   CurrentFile.invalidate()
+
+  // 回传本次真正写进语言文件的 key：批量提取后再做「翻译/填充」时，
+  // 只处理这批 key，不碰项目里其它无关的缺失项。
+  // 注意 keypath 可能为 undefined（整串被拆成多段时只保留分段 key）。
+  return writes.map(w => w.keypath).filter(Boolean) as string[]
 }
 
 const SCRIPT_LANGS = new Set(['typescript', 'javascript', 'typescriptreact', 'javascriptreact'])

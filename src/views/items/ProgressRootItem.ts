@@ -51,7 +51,9 @@ export class ProgressRootItem extends ProgressBaseItem {
 
   // @ts-expect-error
   get contextValue() {
-    const context = ['progress']
+    // locale-root 标记「这一行就是一个语言」，给「删除该语言文件」这类只该出现在
+    // 语言行、不该出现在子项上的按钮用（子项的 contextValue 不含它）
+    const context = ['progress', 'locale-root']
     if (!this.isSource)
       context.push('notsource')
     if (!this.isDisplay)

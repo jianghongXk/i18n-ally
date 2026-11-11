@@ -1,4 +1,4 @@
-# Contributing to i18n-ally
+# Contributing to i18n CN
 
 ## Rules
 
