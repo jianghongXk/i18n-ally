@@ -1,7 +1,6 @@
 # Changelog
 
-本文件只记录 **i18n CN** 这条分支的变更。版本线自 `1.0.0` 重开，与上游的 2.x 版本号无继承关系；
-上游历史见 [CHANGELOG.upstream.md](https://github.com/jianghongXk/i18n-ally/blob/main/docs/CHANGELOG.upstream.md)。
+本文件只记录 **i18n CN** 这条分支的变更。版本线自 `1.0.0` 重开，与上游版本号无继承关系。
 
 本文件**只保留最新一版**（随扩展一起分发，变更声明打开的就是它），更早的版本见 [CHANGELOG.history.md](https://github.com/jianghongXk/i18n-ally/blob/main/docs/CHANGELOG.history.md)。
 
